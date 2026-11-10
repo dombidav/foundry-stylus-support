@@ -14,6 +14,10 @@ export const ACTION_LABELS: Record<ButtonAction, string> = {
     undo: 'Undo last drawing',
     macro: 'Run macro',
     tool: 'Select tool',
+    activeTool: 'Active tool action',
+    removePoint: 'Remove last point',
+    cancelGesture: 'Cancel current gesture',
+    snapOnce: 'Invert grid snapping for the next stroke',
 };
 
 export function createBinding(): StylusBinding {

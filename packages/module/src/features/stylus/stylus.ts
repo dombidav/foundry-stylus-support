@@ -1,7 +1,12 @@
 import { HooksUtils } from '@template/foundry-core';
 import { settings, verbose } from '../../settings.ts';
 import { readBindings } from './bindings.ts';
+import {
+    installNativeGestureControls,
+    runNativeGestureAction,
+} from './native-gestures.ts';
 import { listenForPenCommands } from './pen-input.ts';
+import { createTipGestures } from './tip-gestures.ts';
 import {
     disableSwipeOverride,
     enableSwipeOverride,
@@ -19,9 +24,14 @@ import {
 let toggle: HTMLButtonElement;
 let toolbar: HTMLElement;
 let undoButton: HTMLButtonElement;
+let snapStatus: HTMLSpanElement;
 let board: HTMLCanvasElement | undefined;
 let boardGeneration = 0;
-let stopPen: (() => void) | undefined;
+let penInput: ReturnType<typeof listenForPenCommands> | undefined;
+let tipGestures: ReturnType<typeof createTipGestures> | undefined;
+let nativeGestures: ReturnType<typeof installNativeGestureControls> | undefined;
+let customTool: StylusTool | undefined;
+let hasRulerBindings = false;
 let stopDrawingHistory: (() => void) | undefined;
 let isChangingMode = false;
 let pendingTool: Promise<void> | undefined;
@@ -55,7 +65,12 @@ export function startStylus(): void {
     undoButton.addEventListener('click', () => {
         void undoDrawing();
     });
-    toolbar.append(tools, undoButton);
+    snapStatus = document.createElement('span');
+    snapStatus.className = 'stylus-snap-status';
+    snapStatus.setAttribute('role', 'status');
+    snapStatus.hidden = true;
+    snapStatus.textContent = 'Snap override ready';
+    toolbar.append(tools, undoButton, snapStatus);
     document.body.append(toggle, toolbar);
 
     HooksUtils.on('canvasReady', () => queueMicrotask(syncMode));
@@ -78,16 +93,21 @@ export function startStylus(): void {
 }
 
 export function refreshStylusBindings(): void {
-    stopPen?.();
-    stopPen = board
-        ? listenForPenCommands(
-              board,
-              readBindings(settings.get('stylusBindings')),
-              (binding, event) => {
-                  void executeBinding(binding, event).catch(reportError);
-              },
-          )
-        : undefined;
+    if (!board || !tipGestures) return;
+    penInput?.stop();
+    const bindings = readBindings(settings.get('stylusBindings'));
+    hasRulerBindings = bindings.some(
+        ({ signal, action }) => signal !== null && action === 'activeTool',
+    );
+    penInput = listenForPenCommands(
+        board,
+        bindings,
+        (binding, event) => {
+            void executeBinding(binding, event).catch(reportError);
+        },
+        tipGestures.hasHandled,
+        tipGestures.cancel,
+    );
 }
 
 function syncMode(): void {
@@ -102,12 +122,29 @@ function syncMode(): void {
     if (board !== nextBoard) {
         releaseBoard();
         board = nextBoard;
-        if (board) {
-            refreshStylusBindings();
-            stopDrawingHistory = HooksUtils.on(
-                'createDrawing',
-                onCreateDrawing,
+        if (board && canvas) {
+            tipGestures = createTipGestures(
+                board,
+                canvas,
+                getActiveToolId,
+                reportError,
             );
+            refreshStylusBindings();
+            nativeGestures = installNativeGestureControls(
+                canvas,
+                getActiveToolId,
+                () => hasRulerBindings,
+                (pointerId) => penInput?.isClaimed(pointerId) ?? false,
+                (isReady) => {
+                    snapStatus.hidden = !isReady;
+                },
+            );
+            const stopCreate = HooksUtils.on('createDrawing', onCreateDrawing);
+            const stopDelete = HooksUtils.on('deleteDrawing', onDeleteDrawing);
+            stopDrawingHistory = () => {
+                stopCreate();
+                stopDelete();
+            };
         }
     }
 
@@ -148,8 +185,13 @@ async function toggleMode(): Promise<void> {
 }
 
 function releaseBoard(): void {
-    stopPen?.();
-    stopPen = undefined;
+    nativeGestures?.stop();
+    nativeGestures = undefined;
+    tipGestures?.cancel();
+    tipGestures = undefined;
+    penInput?.stop();
+    penInput = undefined;
+    customTool = undefined;
     stopDrawingHistory?.();
     stopDrawingHistory = undefined;
     board = undefined;
@@ -158,23 +200,36 @@ function releaseBoard(): void {
 
 function syncTools(): void {
     if (!board) return;
+    if (customTool && !isNativeTool(customTool)) {
+        tipGestures?.cancel();
+        customTool = undefined;
+    }
     const tools = getAvailableTools();
+    const activeId = getActiveToolId();
     for (const [id, button] of toolbarButtons) {
         const tool = tools.find((available) => available.id === id);
         const isHidden = !tool;
         if (button.hidden !== isHidden) button.hidden = isHidden;
-        const pressed = String(!!tool && isActiveTool(tool));
+        const pressed = String(!!tool && activeId === id);
         if (button.getAttribute('aria-pressed') !== pressed)
             button.setAttribute('aria-pressed', pressed);
     }
     updateUndoButton();
 }
 
-function isActiveTool(tool: StylusTool): boolean {
+function isNativeTool(tool: StylusTool): boolean {
     return (
         ui.controls.control?.name === tool.control &&
         ui.controls.tool?.name === tool.tool
     );
+}
+
+function getActiveToolId(): ToolId | undefined {
+    if (customTool && isNativeTool(customTool)) return customTool.id;
+    return STYLUS_TOOLS.find(
+        (tool) =>
+            tool.id !== 'eraser' && tool.id !== 'lasso' && isNativeTool(tool),
+    )?.id;
 }
 
 function chooseTool(target: string, direction = 0): Promise<void> {
@@ -191,7 +246,8 @@ function chooseTool(target: string, direction = 0): Promise<void> {
             const tools = getAvailableTools();
             let tool: StylusTool | undefined;
             if (direction) {
-                const index = tools.findIndex(isActiveTool);
+                const activeId = getActiveToolId();
+                const index = tools.findIndex(({ id }) => id === activeId);
                 tool =
                     index < 0
                         ? direction < 0
@@ -204,10 +260,22 @@ function chooseTool(target: string, direction = 0): Promise<void> {
                 tool = tools.find(({ id }) => id === target);
             }
             if (!tool) return;
+            tipGestures?.cancel();
+            customTool = undefined;
             await ui.controls.activate({
                 control: tool.control,
                 tool: tool.tool,
             });
+            if (
+                boardGeneration !== generation ||
+                canvas?.scene !== currentScene
+            )
+                return;
+            if (
+                (tool.id === 'eraser' || tool.id === 'lasso') &&
+                isNativeTool(tool)
+            )
+                customTool = tool;
             syncTools();
         })
         .catch(reportError);
@@ -228,6 +296,21 @@ async function executeBinding(
             return undoDrawing();
         case 'tool':
             return chooseTool(binding.target);
+        case 'activeTool':
+        case 'removePoint':
+        case 'cancelGesture':
+            if (binding.action === 'cancelGesture') tipGestures?.cancel();
+            if (canvas?.ready)
+                runNativeGestureAction(
+                    canvas,
+                    getActiveToolId(),
+                    binding.action,
+                    event,
+                );
+            return;
+        case 'snapOnce':
+            nativeGestures?.toggleSnap();
+            return;
         case 'macro': {
             const macro = game.macros.get(binding.target);
             if (!macro?.canExecute) {
@@ -264,6 +347,14 @@ function onCreateDrawing(
     updateUndoButton();
 }
 
+function onDeleteDrawing(drawing: foundry.documents.DrawingDocument): void {
+    const scene = drawing.parent;
+    const history = scene && histories.get(scene);
+    const index = history?.lastIndexOf(drawing.id ?? '') ?? -1;
+    if (index >= 0) history?.splice(index, 1);
+    if (scene === canvas?.scene) updateUndoButton();
+}
+
 function undoDrawing(): Promise<void> | undefined {
     const scene = canvas?.scene;
     if (!board || !scene) return;
@@ -290,7 +381,10 @@ function undoDrawing(): Promise<void> | undefined {
                     return;
                 }
                 await scene.deleteEmbeddedDocuments('Drawing', [id]);
-                if (!scene.drawings.has(id)) history.splice(index, 1);
+                if (!scene.drawings.has(id)) {
+                    const remainingIndex = history.lastIndexOf(id);
+                    if (remainingIndex >= 0) history.splice(remainingIndex, 1);
+                }
                 return;
             }
         })

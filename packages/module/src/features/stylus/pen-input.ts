@@ -5,7 +5,9 @@ export function listenForPenCommands(
     board: HTMLCanvasElement,
     bindings: readonly StylusBinding[],
     onCommand: (binding: StylusBinding, event: PointerEvent) => void,
-): (() => void) | undefined {
+    hasHandledTip: (event: PointerEvent) => boolean,
+    onResetTip: () => void,
+) {
     const down = new Map<number, StylusBinding>();
     const move = new Map<number, StylusBinding>();
     for (const binding of bindings) {
@@ -18,20 +20,28 @@ export function listenForPenCommands(
         const commands = binding.signal.type === 'pointerdown' ? down : move;
         commands.set(binding.signal.buttons, binding);
     }
-    if (!down.size && !move.size) return;
-
     const listeners = new AbortController();
     const options = { capture: true, signal: listeners.signal };
     const masks = new Map<number, number>();
     // An entry claims the gesture. Its value records whether a command has run during this contact.
     const claimed = new Map<number, boolean>();
-    let released: number | undefined;
+    let released: PointerEvent | undefined;
 
     function onPointer(event: PointerEvent): void {
-        if (event.target !== board || event.pointerType !== 'pen') return;
+        if (event.type === 'pointerdown' && event.target !== board) return;
+        if (event.type === 'pointerdown') released = undefined;
+        if (
+            event.pointerType === 'pen' &&
+            event.target === board &&
+            hasHandledCommand(event)
+        )
+            return;
+        if (hasHandledTip(event)) consume(event);
+    }
+
+    function hasHandledCommand(event: PointerEvent): boolean {
         const { pointerId, type, buttons } = event;
         const isDown = type === 'pointerdown';
-        if (isDown) released = undefined;
         const previous = masks.get(pointerId) ?? 0;
         if (move.size) {
             if (buttons) masks.set(pointerId, buttons);
@@ -44,7 +54,7 @@ export function listenForPenCommands(
             isDown && (buttons & 1) === 0 && move.has(buttons | 1);
         if ((binding || isPrecedingHover) && !claimed.has(pointerId))
             claimed.set(pointerId, false);
-        if (!claimed.has(pointerId)) return;
+        if (!claimed.has(pointerId)) return false;
         consume(event);
         if ((previous & 1) !== 0 && (buttons & 1) === 0)
             claimed.set(pointerId, false);
@@ -52,13 +62,17 @@ export function listenForPenCommands(
             claimed.set(pointerId, true);
             onCommand(binding, event);
         }
+        return true;
     }
 
     function onEnd(event: PointerEvent): void {
-        if (event.pointerType !== 'pen') return;
-        masks.delete(event.pointerId);
-        if (!claimed.delete(event.pointerId)) return;
-        released = event.type === 'pointerup' ? event.pointerId : undefined;
+        let wasClaimed = false;
+        if (event.pointerType === 'pen') {
+            masks.delete(event.pointerId);
+            wasClaimed = claimed.delete(event.pointerId);
+        }
+        if (!wasClaimed && !hasHandledTip(event)) return;
+        released = event.type === 'pointerup' ? event : undefined;
         consume(event);
     }
 
@@ -66,10 +80,11 @@ export function listenForPenCommands(
         if (
             event.target === board &&
             'pointerType' in event &&
-            event.pointerType === 'pen' &&
             'pointerId' in event &&
             typeof event.pointerId === 'number' &&
-            (claimed.has(event.pointerId) || released === event.pointerId)
+            ((event.pointerType === 'pen' && claimed.has(event.pointerId)) ||
+                (released?.pointerId === event.pointerId &&
+                    released.pointerType === event.pointerType))
         ) {
             consume(event);
         }
@@ -80,9 +95,17 @@ export function listenForPenCommands(
     window.addEventListener('pointermove', onPointer, options);
     window.addEventListener('pointerup', onEnd, options);
     window.addEventListener('pointercancel', onEnd, options);
+    if (move.size)
+        board.addEventListener(
+            'pointerleave',
+            (event) => masks.delete(event.pointerId),
+            { signal: listeners.signal },
+        );
     board.addEventListener(
-        'pointerleave',
-        (event) => masks.delete(event.pointerId),
+        'lostpointercapture',
+        (event) => {
+            hasHandledTip(event);
+        },
         { signal: listeners.signal },
     );
     for (const type of ['click', 'auxclick', 'contextmenu'] as const) {
@@ -94,10 +117,14 @@ export function listenForPenCommands(
             claimed.clear();
             masks.clear();
             released = undefined;
+            onResetTip();
         },
         { signal: listeners.signal },
     );
-    return () => listeners.abort();
+    return {
+        stop: () => listeners.abort(),
+        isClaimed: (pointerId: number) => claimed.has(pointerId),
+    };
 }
 
 function consume(event: Event): void {

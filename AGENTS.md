@@ -38,7 +38,7 @@ There are four private workspaces. Dependency direction is `module → module-co
 - `module-common`: evolving module-specific shared types and functionality. Prefer environment independence; no automatic initialization or unnecessary side effects. May depend on `foundry-core` and `dnd5e-core`, never `module`.
 - `module`: Foundry lifecycle, hooks, API/UI integration, and runtime features. May consume all three shared workspaces.
 
-In `module`, keep `src/main.ts` focused on wiring lifecycle hooks to the named handlers in `src/lifecycle.ts`. Group feature logic, feature-specific `.types.d.ts` declarations, and standalone helpers under `src/features/<feature>/`. The empty `features/example` files demonstrate this layout. Keep corresponding tests under `tests/features/<feature>/`, adding test files when a feature gains behavior.
+In `module`, keep `src/main.ts` focused on wiring lifecycle hooks to the named handlers in `src/lifecycle.ts`. Group feature logic, feature-specific `.types.d.ts` declarations, and standalone helpers under `src/features/<feature>/`. Keep corresponding tests under `tests/features/<feature>/`, adding test files when a feature gains behavior.
 
 All workspaces are private. Use npm-compatible dependency versions, never `workspace:*`. The root package version alone controls releases; workspace versions are internal link metadata.
 

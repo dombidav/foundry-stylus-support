@@ -44,7 +44,30 @@ export const STYLUS_TOOLS: readonly StylusTool[] = [
         control: 'drawings',
         tool: 'polygon',
     },
+    {
+        id: 'eraser',
+        label: 'Erase drawing',
+        icon: 'fa-eraser',
+        control: 'drawings',
+        tool: 'select',
+    },
+    {
+        id: 'lasso',
+        label: 'Lasso tokens',
+        icon: 'fa-object-group',
+        control: 'tokens',
+        tool: 'select',
+    },
 ];
+
+export function canOverrideSnap(tool: StylusTool['id'] | undefined): boolean {
+    return (
+        tool === 'measure' ||
+        tool === 'rectangle' ||
+        tool === 'ellipse' ||
+        tool === 'polygon'
+    );
+}
 
 export function getAvailableTools(): StylusTool[] {
     const controls = ui.controls?.controls;

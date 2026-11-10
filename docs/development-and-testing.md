@@ -22,8 +22,8 @@ Use the committed `.editorconfig` and `.prettierrc.json`. The current editor ind
 ## Test placement
 
 ```text
-packages/module/src/features/example/example.utils.ts
-packages/module/tests/features/example/example.utils.test.ts
+packages/module/src/features/stylus/bindings.ts
+packages/module/tests/features/stylus/bindings.test.ts
 
 scripts/check-examples/check-examples.ts
 scripts/check-examples/tests/check-examples.test.ts

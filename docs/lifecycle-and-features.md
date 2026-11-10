@@ -28,7 +28,7 @@ Foundry hook dispatch does not await callbacks. An async callback can start work
 
 ## Add a feature
 
-The three files in `src/features/example` are intentionally empty. Put feature startup/handlers in `example.ts`, declarations in `example.types.d.ts`, and standalone helpers in `example.utils.ts`. Avoid empty runtime wrappers; a feature can remain one file until it needs more.
+Keep startup handlers, declarations, and standalone helpers in the feature directory. A feature can remain one file until it needs more.
 
 For example, the following feature subscribes to one native event and returns ownership of its cleanup:
 
@@ -85,4 +85,4 @@ Call this after initialization. Disabled verbose mode skips the settings read be
 - `tests/main.test.ts` checks stage-to-handler wiring and deferred initialization.
 - `tests/lifecycle.test.ts` checks registration, saved verbose state, and ready behavior.
 - `tests/settings.test.ts` checks inferred value contracts without reading host settings at test runtime.
-- Feature tests belong under `tests/features/example/`, matching the eventual source files. `.gitkeep` preserves the empty directory until real behavior exists.
+- Feature tests belong under `tests/features/<feature>/`, mirroring the source files.

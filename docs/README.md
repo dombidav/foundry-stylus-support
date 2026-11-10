@@ -8,7 +8,7 @@ This wiki explains the stylus module, its workspace utilities and types, and the
 | --- | --- |
 | Install, build, and run the stylus module | [Getting started](getting-started.md) |
 | Choose the correct workspace and design a feature | [Architecture](architecture.md) |
-| Understand initialization and the example feature scaffold | [Lifecycle and features](lifecycle-and-features.md) |
+| Understand initialization and feature layout | [Lifecycle and features](lifecycle-and-features.md) |
 | Calibrate stylus buttons, use the toolbar, and test browser input | [Stylus support](stylus-support.md) |
 | Write declarations and follow naming/import conventions | [Types and conventions](types-and-conventions.md) |
 | Run checks and add tests | [Development and testing](development-and-testing.md) |

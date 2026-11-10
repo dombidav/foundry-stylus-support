@@ -45,19 +45,19 @@ packages/module/
 │   ├── module-id.ts
 │   ├── settings.ts
 │   ├── foundry.d.ts
-│   └── features/example/
-│       ├── example.ts
-│       ├── example.types.d.ts
-│       └── example.utils.ts
+│   └── features/stylus/
+│       ├── stylus.ts
+│       ├── stylus.types.d.ts
+│       └── bindings.ts
 └── tests/
     ├── main.test.ts
     ├── lifecycle.test.ts
     ├── module-id.test.ts
     ├── settings.test.ts
-    └── features/example/.gitkeep
+    └── features/stylus/
 ```
 
-`main.ts` wires the host lifecycle. `lifecycle.ts` decides when to initialize behavior. A feature owns its handlers, declarations, and helpers. Split a growing feature when its responsibilities justify it; split lifecycle handlers into separate files only when the phases gain substantial independent logic. The current example feature is an empty structural placeholder.
+`main.ts` wires the host lifecycle. `lifecycle.ts` decides when to initialize behavior. A feature owns its handlers, declarations, and helpers. Split a growing feature when its responsibilities justify it. Split lifecycle handlers into separate files only when the phases gain substantial independent logic.
 
 ## Functions and grouped utilities
 

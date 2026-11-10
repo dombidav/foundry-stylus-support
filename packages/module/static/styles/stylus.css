@@ -35,6 +35,12 @@
     gap: 0.25rem;
 }
 
+.stylus-snap-status {
+    align-self: center;
+    padding-inline: 0.3rem;
+    font-size: 0.8rem;
+}
+
 .stylus-touch-toggle,
 .stylus-toolbar button {
     width: 2.25rem;

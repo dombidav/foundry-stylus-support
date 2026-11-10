@@ -1,8 +1,32 @@
 export type ToolId =
-    'select' | 'measure' | 'freehand' | 'rectangle' | 'ellipse' | 'polygon';
+    | 'select'
+    | 'measure'
+    | 'freehand'
+    | 'rectangle'
+    | 'ellipse'
+    | 'polygon'
+    | 'eraser'
+    | 'lasso';
 
 export type ButtonAction =
-    'none' | 'previous' | 'next' | 'undo' | 'macro' | 'tool';
+    | 'none'
+    | 'previous'
+    | 'next'
+    | 'undo'
+    | 'macro'
+    | 'tool'
+    | 'activeTool'
+    | 'removePoint'
+    | 'cancelGesture'
+    | 'snapOnce';
+
+export type NativeGestureAction =
+    'activeTool' | 'removePoint' | 'cancelGesture';
+
+export interface StylusPoint {
+    x: number;
+    y: number;
+}
 
 export interface PenSignal {
     type: 'pointerdown' | 'pointermove';
