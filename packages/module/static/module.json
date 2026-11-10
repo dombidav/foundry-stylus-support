@@ -1,0 +1,10 @@
+{
+  "id": "foundry-module-template",
+  "title": "Foundry Module Template",
+  "description": "A minimal, performance-first D&D 5e module template for Foundry VTT v14.",
+  "authors": [{ "name": "Module Author" }],
+  "version": "0.0.0",
+  "compatibility": { "minimum": "14", "verified": "14", "maximum": "14" },
+  "relationships": { "systems": [{ "id": "dnd5e", "type": "system" }] },
+  "esmodules": ["scripts/main.js"]
+}

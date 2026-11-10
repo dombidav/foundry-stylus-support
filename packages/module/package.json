@@ -1,0 +1,16 @@
+{
+  "name": "@template/module",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@template/foundry-core": "0.0.0",
+    "@template/dnd5e-core": "0.0.0",
+    "@template/module-common": "0.0.0",
+    "lodash-es": "^4.17.21"
+  }
+}

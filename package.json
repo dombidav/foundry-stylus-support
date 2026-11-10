@@ -1,0 +1,49 @@
+{
+  "name": "foundry-module-template",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.14.1",
+    "npm": ">=11"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @template/module",
+    "typecheck": "tsc -p tsconfig.json && npm run typecheck --workspaces && npm run check:examples",
+    "check:examples": "tsx scripts/check-examples/check-examples.ts",
+    "lint": "eslint . && tsx scripts/check-boolean-names/check-boolean-names.ts",
+    "lint:fix": "eslint . --fix && tsx scripts/check-boolean-names/check-boolean-names.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm run lint && npm run test",
+    "release:package": "tsx scripts/package-release/package-release.ts",
+    "release:patch": "tsx scripts/release/release.ts patch",
+    "release:minor": "tsx scripts/release/release.ts minor",
+    "release:major": "tsx scripts/release/release.ts major"
+  },
+  "overrides": {
+    "@dfreds/foundry-types": {
+      "handlebars": "^4.7.10"
+    },
+    "minimatch": "^11.0.4"
+  },
+  "devDependencies": {
+    "@dfreds/foundry-types": "^14.369.1",
+    "@eslint/js": "^10.0.1",
+    "@types/lodash-es": "^4.17.12",
+    "@types/node": "^24.19.2",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.7",
+    "fflate": "^0.8.3",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  }
+}

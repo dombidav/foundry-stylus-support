@@ -1,0 +1,50 @@
+name: Release
+
+on:
+    push:
+        tags:
+            - 'v*'
+
+permissions:
+    contents: read
+
+concurrency:
+    group: release-${{ github.ref }}
+    cancel-in-progress: false
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        permissions:
+            contents: write
+        steps:
+            - name: Check out the release tag
+              uses: actions/checkout@v6
+              with:
+                  persist-credentials: false
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: '24'
+                  cache: npm
+
+            - name: Install locked dependencies
+              run: npm ci
+
+            - name: Check types, documentation, lint, and tests
+              run: npm run check
+
+            - name: Build and package the tagged version
+              run: npm run release:package
+
+            # Publish only after both assets have uploaded successfully to the draft.
+            - name: Publish the GitHub Release
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GH_REPO: ${{ github.repository }}
+                  RELEASE_TAG: ${{ github.ref_name }}
+              run: |
+                  gh release create "$RELEASE_TAG" releases/*.zip dist/module/module.json --verify-tag --generate-notes --draft
+                  gh release edit "$RELEASE_TAG" --draft=false

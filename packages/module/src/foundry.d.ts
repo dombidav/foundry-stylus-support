@@ -1,0 +1,1 @@
+import '@template/foundry-core';

@@ -1,0 +1,18 @@
+{
+  "name": "@template/module-common",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@template/foundry-core": "0.0.0",
+    "@template/dnd5e-core": "0.0.0",
+    "lodash-es": "^4.17.21"
+  }
+}
