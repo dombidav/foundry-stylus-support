@@ -10,6 +10,8 @@
 
 The toolbar offers Select tokens, Measure distance, Freehand draw, Draw rectangle, Draw ellipse, Draw polygon, Erase drawing, and Lasso tokens according to Foundry's scene controls and permissions. The eraser removes the topmost visible, unlocked drawing you may delete under a short tap. The lasso selects visible, controllable tokens whose centers lie inside the freehand outline. Hold Shift to add to the existing selection. Both tools accept a physical mouse or a pen. Undo tracks successful drawings created by the current user while stylus mode is active. It is scoped to the active scene and browser session. [Foundry drawing tools](https://foundryvtt.com/article/drawings/), [Foundry SceneControls](https://foundryvtt.com/api/v14/classes/foundry.applications.ui.SceneControls.html#activate)
 
+In stylus mode, selecting a drawing creation tool opens Foundry's drawing palette. Use it to choose the stroke and fill colors for new drawings. Selecting a tool such as Erase drawing, Lasso tokens, or Measure distance closes the palette. [Foundry DrawingPalette](https://foundryvtt.com/api/v14/classes/foundry.applications.sheets.palette.DrawingPalette.html)
+
 | Button action | Behavior |
 | --- | --- |
 | **Active tool action** | Finish an open polygon with at least three fixed vertices or add a waypoint at the button tap during a measurement. A learned binding for this action keeps a pen measurement open when the tip lifts so it can accept waypoints. A measurement kept open by Stylus Support clears when you switch tools, disable the mode, or remove the last binding for this action. |

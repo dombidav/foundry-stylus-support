@@ -3,6 +3,10 @@ import { MODULE_ID } from '../../module-id.ts';
 import { settings, stylusDiagnostics, verbose } from '../../settings.ts';
 import { readBindings } from './bindings.ts';
 import {
+    createDrawingPaletteControls,
+    isDrawingCreationTool,
+} from './drawing-palette.ts';
+import {
     installNativeGestureControls,
     runNativeGestureAction,
 } from './native-gestures.ts';
@@ -26,6 +30,7 @@ let toggle: HTMLButtonElement;
 let toolbar: HTMLElement;
 let undoButton: HTMLButtonElement;
 let snapStatus: HTMLSpanElement;
+let drawingPalette: ReturnType<typeof createDrawingPaletteControls>;
 let board: HTMLCanvasElement | undefined;
 let boardGeneration = 0;
 let penInput: ReturnType<typeof listenForPenCommands> | undefined;
@@ -43,6 +48,7 @@ const pendingUndo = new WeakMap<foundry.documents.Scene, Promise<void>>();
 const toolbarButtons = new Map<ToolId, HTMLButtonElement>();
 
 export function startStylus(): void {
+    drawingPalette = createDrawingPaletteControls(ui.controls, reportError);
     toggle = createIconButton(
         'fa-hand-pointer',
         'Enable stylus and Swipe VTT touch',
@@ -83,7 +89,10 @@ export function startStylus(): void {
         toggle.disabled = true;
     });
     HooksUtils.on('renderSceneControls', syncTools);
-    ui.controls.addEventListener('activate', syncTools);
+    ui.controls.addEventListener('activate', () => {
+        if (board) void drawingPalette.sync();
+        syncTools();
+    });
     HooksUtils.on('swipeVtt.enabled', () => queueMicrotask(syncMode));
     HooksUtils.on('swipeVtt.disabled', () => queueMicrotask(syncMode));
     HooksUtils.on('clientSettingChanged', (key: string) => {
@@ -221,7 +230,10 @@ function syncMode(): void {
     toggle.title = label;
     toggle.setAttribute('aria-label', label);
     toolbar.hidden = !isActive;
-    if (isActive) syncTools();
+    if (isActive) {
+        void drawingPalette.sync();
+        syncTools();
+    }
 }
 
 async function toggleMode(): Promise<void> {
@@ -248,6 +260,7 @@ async function toggleMode(): Promise<void> {
 }
 
 function releaseBoard(): void {
+    if (board) drawingPalette.stop();
     if (board && verbose.isVerbose)
         stylusDiagnostics.record('stylus', 'canvasDetached', {
             generation: boardGeneration,
@@ -338,6 +351,20 @@ function chooseTool(target: string, direction = 0): Promise<void> {
             if (!tool) return;
             tipGestures?.cancel();
             customTool = undefined;
+            if (
+                !isDrawingCreationTool(
+                    tool.control,
+                    ui.controls.controls[tool.control]?.tools[tool.tool],
+                )
+            ) {
+                const close = drawingPalette.closeBeforeLeaving();
+                if (close) await close;
+                if (
+                    boardGeneration !== generation ||
+                    canvas?.scene !== currentScene
+                )
+                    return;
+            }
             await ui.controls.activate({
                 control: tool.control,
                 tool: tool.tool,
@@ -352,6 +379,7 @@ function chooseTool(target: string, direction = 0): Promise<void> {
                 isNativeTool(tool)
             )
                 customTool = tool;
+            void drawingPalette.sync(true);
             syncTools();
         })
         .catch(reportError);
