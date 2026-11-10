@@ -1,14 +1,15 @@
 # Project wiki
 
-This wiki explains the **implemented template**, its public utilities and types, and the conventions for extending it. The runtime target is **Foundry VTT v14** with **D&D 5e 6.0.6**. Development requires **Node.js 24.14.1+** and **npm 11+**. See [compatibility](compatibility-and-troubleshooting.md) before changing those targets.
+This wiki explains the stylus module, its workspace utilities and types, and the conventions for extending it. The runtime target is **Foundry VTT v14** with **D&D 5e 6.0.6** and **Swipe VTT 2.12.4**. Development requires **Node.js 24.14.1+** and **npm 11+**. See [compatibility](compatibility-and-troubleshooting.md) before changing those targets.
 
 ## Start here
 
 | Goal | Page |
 | --- | --- |
-| Install, build, and run the example module | [Getting started](getting-started.md) |
+| Install, build, and run the stylus module | [Getting started](getting-started.md) |
 | Choose the correct workspace and design a feature | [Architecture](architecture.md) |
 | Understand initialization and the example feature scaffold | [Lifecycle and features](lifecycle-and-features.md) |
+| Calibrate stylus buttons, use the toolbar, and test browser input | [Stylus support](stylus-support.md) |
 | Write declarations and follow naming/import conventions | [Types and conventions](types-and-conventions.md) |
 | Run checks and add tests | [Development and testing](development-and-testing.md) |
 | Understand development script/helper APIs | [Tooling reference](tooling-reference.md) |
@@ -41,4 +42,4 @@ Each utility reference lists every function in its namespaces, explains edge cas
 - Inline snippets in tables show contextual usage. Complete import/lifecycle examples live in the linked guides.
 - Source links are repository-relative. Keep this wiki with the repository when sharing it.
 
-The current example registers `isVerbose`, `testChoice`, and `testInteger`; its entry point, lifecycle handlers, and settings are under [packages/module/src](../packages/module/src). [AGENTS.md](../AGENTS.md) is the repository's contributor instruction source.
+The module registers a verbose checkbox and a stylus settings submenu. Its entry point, lifecycle handlers, and settings are under [packages/module/src](../packages/module/src). [AGENTS.md](../AGENTS.md) is the repository's contributor instruction source.

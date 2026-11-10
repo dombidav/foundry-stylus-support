@@ -1,10 +1,21 @@
 {
-  "id": "foundry-module-template",
-  "title": "Foundry Module Template",
-  "description": "A minimal, performance-first D&D 5e module template for Foundry VTT v14.",
-  "authors": [{ "name": "Module Author" }],
-  "version": "0.0.0",
-  "compatibility": { "minimum": "14", "verified": "14", "maximum": "14" },
-  "relationships": { "systems": [{ "id": "dnd5e", "type": "system" }] },
-  "esmodules": ["scripts/main.js"]
+    "id": "foundry-stylus-support",
+    "title": "Stylus Support",
+    "description": "Pen tools and configurable stylus button gestures for Foundry VTT v14 and Swipe VTT.",
+    "authors": [{ "name": "Module Author" }],
+    "version": "0.0.0",
+    "compatibility": { "minimum": "14", "verified": "14", "maximum": "14" },
+    "relationships": {
+        "systems": [{ "id": "dnd5e", "type": "system" }],
+        "requires": [
+            {
+                "id": "swipe-vtt",
+                "type": "module",
+                "manifest": "https://raw.githubusercontent.com/crlngn/swipe-vtt/v2/module.json",
+                "compatibility": { "minimum": "2.12.4" }
+            }
+        ]
+    },
+    "esmodules": ["scripts/main.js"],
+    "styles": ["styles/stylus.css"]
 }

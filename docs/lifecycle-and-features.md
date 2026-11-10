@@ -8,11 +8,11 @@
 
 | Phase | Current behavior | Appropriate additions |
 | --- | --- | --- |
-| `init` | Register the three settings. | Explicit native registrations needed by the module. |
+| `init` | Register browser-local settings and the stylus settings submenu. | Explicit native registrations needed by the module. |
 | `setup` | Read saved `isVerbose` and initialize the cache. | Read registered settings and configure feature state. |
-| `ready` | Show Hello World in D&D 5e and lazily log test settings. | World/document-dependent feature startup. |
-| `canvasReady` | No module listener by default. | Scene/placeable-dependent work that must follow canvas redraws. |
-| `canvasTearDown` | No module listener by default. | Release resources tied to the old canvas/scene. |
+| `ready` | Mount the floating stylus controls in D&D 5e. | World/document-dependent feature startup. |
+| `canvasReady` | Attach stylus board listeners when the touch override is active. | Scene/placeable-dependent work that must follow canvas redraws. |
+| `canvasTearDown` | Release board listeners and hide the toolbar. | Release resources tied to the old canvas/scene. |
 
 ```ts
 import { onInit, onSetup, onReady } from '../packages/module/src/lifecycle.ts';
@@ -73,13 +73,12 @@ import { settings, verbose } from '../packages/module/src/settings.ts';
 
 export function inspectExampleSettings(): void {
     verbose.debug(() => ({
-        choice: settings.get('testChoice'),
-        integer: settings.get('testInteger'),
+        hasBindings: settings.get('stylusBindings') !== '[]',
     }));
 }
 ```
 
-Call this after initialization. Disabled verbose mode skips both reads because they are inside the producer. `testChoice` has the inferred type `'first' | 'second' | 'third'`.
+Call this after initialization. Disabled verbose mode skips the settings read because it is inside the producer.
 
 ## Test the same boundaries
 

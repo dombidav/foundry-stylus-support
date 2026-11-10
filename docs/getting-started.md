@@ -21,7 +21,8 @@ Use `npm ci` for a clean installation from the committed lockfile. Use npm for w
 ```text
 dist/module/
 ├── module.json
-└── scripts/main.js
+├── scripts/main.js
+└── styles/stylus.css
 ```
 
 ## Configure your module
@@ -44,18 +45,10 @@ This example only constructs the facade. Its explicit registration and initial c
 
 Copy the **contents** of `dist/module` into `<Foundry user data>/Data/modules/<module-id>`. The resulting layout must contain `Data/modules/<module-id>/module.json`, with `scripts/main.js` below it. Restart Foundry as needed, open a D&D 5e world, and enable the module under Manage Modules.
 
-The example displays **Hello World!** at `ready`. Its visible settings are:
-
-| Key | Scope | Default | UI |
-| --- | --- | --- | --- |
-| `isVerbose` | `client` | `false` | Verbose mode checkbox |
-| `testChoice` | `world` | `'first'` | First / Second / Third dropdown |
-| `testInteger` | `world` | `5` | Slider from 0 to 10, step 1 |
-
-When verbose mode is enabled, the ready handler logs both test values with the module prefix. Browser console filters must also allow debug messages. The numeric range describes the UI; the facade's numeric validation checks finite numbers, not integer/range membership.
+Enable Swipe VTT in the same world. On a loaded scene, use the floating button on the left to enable the stylus toolbar. Set up button gestures under **Configure Settings → Module Settings → Stylus Support → Configure stylus buttons**. [Stylus setup and calibration](stylus-support.md)
 
 ## Iterate
 
 Edit source, run `npm run check`, rebuild, and reload Foundry. The template has no development server or HMR. Tests run in Node with narrow native mocks; verify actual in-app behavior against the supported host versions.
 
-To add behavior, start in the [empty example feature](../packages/module/src/features/example) and follow [the feature walkthrough](lifecycle-and-features.md). To distribute an artifact, use the [release workflow](build-and-release.md).
+Stylus behavior lives in the [stylus feature](../packages/module/src/features/stylus). Follow the [feature walkthrough](lifecycle-and-features.md) when adding behavior. To distribute an artifact, use the [release workflow](build-and-release.md).

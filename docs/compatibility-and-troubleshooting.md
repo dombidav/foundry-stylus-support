@@ -27,7 +27,7 @@ Check the installed declarations and official version-specific sources before ch
 | A settings callback fails during init or returns a Promise | Default callbacks run at registration and reset; choices callbacks run on input rendering. Both must be synchronous, fast, and side-effect-free. Defaults must work during init and keep the same primitive kind. |
 | A numeric setting rejects `NaN` or `Infinity` | Numeric validation requires finite values. The range slider is a separate UI constraint. |
 | A choice getter is `string` | Its dictionary was widened to `Record<string, string>` or factory generics were specified too broadly. Preserve the literal keys and let `create` infer the schema. |
-| `testInteger` accepts a number outside 0–10 in code | The facade validates primitive kind and finite values; `range` configures the native UI, not an integer/range type or facade validator. |
+| A numeric setting accepts a value outside its slider range in code | The facade checks primitive kind and finiteness. The feature owns domain-specific bounds. |
 | Verbose logging stays off after a reload | Seed the controller with saved `isVerbose` during `setup`; construction starts disabled. |
 | Verbose is enabled but debug output is invisible | Allow debug/verbose messages in the browser console filter. |
 | Expensive diagnostics still run while verbose is off | Pass a producer: `verbose.debug(() => buildDiagnostics())`. Eager arguments are evaluated by JavaScript before the wrapper is called. |

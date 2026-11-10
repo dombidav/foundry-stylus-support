@@ -14,7 +14,8 @@ npm run build
 ```text
 dist/module/
 ├── module.json
-└── scripts/main.js
+├── scripts/main.js
+└── styles/stylus.css
 ```
 
 Shared workspaces export TypeScript source, allowing Vite to remove unused functions and type-only imports. The current module consumes Foundry settings helpers, while D&D utilities and Lodash remain unused. `MODULE_ID` comes from the source manifest's named ID export; its bundle regression test checks that unrelated manifest metadata is excluded.

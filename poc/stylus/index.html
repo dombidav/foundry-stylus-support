@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="hu">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Stylus teszt</title>
+        <style>
+            :root {
+                color-scheme: dark;
+                font:
+                    16px/1.5 system-ui,
+                    sans-serif;
+                background: #101820;
+                color: #edf3f8;
+            }
+            body {
+                max-width: 76rem;
+                margin: 0 auto;
+                padding: 1rem;
+            }
+            h1,
+            h2,
+            p {
+                margin: 0 0 0.7rem;
+            }
+            main {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) minmax(19rem, 24rem);
+                gap: 1rem;
+                align-items: start;
+                margin-bottom: 1rem;
+            }
+            .pad {
+                position: relative;
+                overflow: hidden;
+                border: 1px solid #587180;
+                border-radius: 0.5rem;
+                background-color: #17232c;
+                background-image: radial-gradient(#456171 1px, transparent 1px);
+                background-size: 20px 20px;
+            }
+            .pad:focus-within {
+                outline: 2px solid #8fb6cb;
+                outline-offset: 2px;
+            }
+            .pad.is-triggered {
+                border-color: #fdbb72;
+                background-color: #443226;
+            }
+            canvas {
+                display: block;
+                width: 100%;
+                height: clamp(16rem, 58vh, 40rem);
+                touch-action: none;
+                user-select: none;
+                cursor: crosshair;
+            }
+            #marker {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 14px;
+                height: 14px;
+                box-sizing: border-box;
+                border: 2px solid #70f1d2;
+                border-radius: 50%;
+                pointer-events: none;
+            }
+            button {
+                margin-top: 0.7rem;
+                padding: 0.4rem 0.8rem;
+                font: inherit;
+            }
+            label,
+            select {
+                display: block;
+            }
+            select {
+                max-width: 100%;
+                margin: 0.25rem 0 0.5rem;
+                font: inherit;
+            }
+            aside {
+                border: 1px solid #587180;
+                border-radius: 0.5rem;
+                padding: 0.8rem;
+            }
+            h2 {
+                font-size: 1rem;
+            }
+            pre {
+                margin: 0 0 1rem;
+                font:
+                    0.81rem/1.5 ui-monospace,
+                    monospace;
+                font-variant-numeric: tabular-nums;
+                white-space: pre-wrap;
+                overflow-wrap: anywhere;
+            }
+            #buttons {
+                margin-bottom: 0;
+                min-height: 9em;
+                max-height: 15em;
+                overflow: auto;
+            }
+            @media (max-width: 48rem) {
+                main {
+                    grid-template-columns: minmax(0, 1fr);
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Stylus teszt</h1>
+        <p>
+            Érintsd meg a vásznat ujjal, majd mozgasd fölötte a tollat érintés
+            nélkül. Rajzolj eltérő nyomással és dőléssel, végül nyomd meg és
+            engedd el külön-külön a két gombot lebegés közben és a hegyet a
+            vásznon tartva.
+        </p>
+        <main>
+            <section aria-label="Rajzfelület">
+                <div class="pad">
+                    <canvas
+                        id="pad"
+                        tabindex="0"
+                        aria-label="Stylus tesztvászon"
+                    ></canvas>
+                    <span id="marker" aria-hidden="true" hidden></span>
+                </div>
+                <button id="clear" type="button">Teszt törlése</button>
+                <h2>Próba-hozzárendelés</h2>
+                <p>
+                    Kattints a vászonra a billentyűjelek méréséhez. Próbáld ki
+                    az egyik tollgombot, válaszd ki a hozzá tartozó jelet, majd
+                    a vásznon ismételd meg. Találatkor a vászon háttere átvált,
+                    és a számláló nő.
+                </p>
+                <label for="binding">A tesztművelet jele</label>
+                <select id="binding">
+                    <option value="">Nincs kiválasztva</option>
+                </select>
+                <p id="action" role="status">Tesztművelet · 0</p>
+            </section>
+            <aside>
+                <h2>Észlelt képességek</h2>
+                <pre id="capabilities"></pre>
+                <h2>Legutóbbi bemenet</h2>
+                <pre id="live">Várakozás a vászon eseményeire…</pre>
+                <h2>Gomb- és billentyűesemények (legújabb felül)</h2>
+                <pre id="buttons">Várakozás gombeseményre…</pre>
+            </aside>
+        </main>
+        <p>
+            A <code>maxTouchPoints</code> a böngésző által jelentett érintési
+            pontok száma. Az ujjteszt igazolja az élő érintési bemenetet. A
+            <code>0.5</code> lehet a nyomás alapértéke, a
+            <code>0°</code> függőleges tollat vagy hiányzó dőlésadatot is
+            jelenthet. A <code>button</code> a változás kódja, a
+            <code>buttons</code> az aktív gombok bitmaszkja. A toll két fizikai
+            gombjának kódja eszközönként eltérhet.
+        </p>
+        <script src="stylus.js" defer></script>
+    </body>
+</html>

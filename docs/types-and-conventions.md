@@ -60,10 +60,10 @@ import { type settings } from '../packages/module/src/settings.ts';
 
 export type ModuleSettings = SettingsValuesOf<typeof settings>;
 export type ModuleSettingKey = SettingKeyOf<typeof settings>;
-export type ExampleChoice = ModuleSettings['testChoice'];
+export type StoredStylusBindings = ModuleSettings['stylusBindings'];
 ```
 
-Type imports and declaration-only expressions are erased. Here `ExampleChoice` is `'first' | 'second' | 'third'`, while the numeric slider remains `number`. The helper does not model numeric ranges as literal unions.
+Type imports and declaration-only expressions are erased. Here `StoredStylusBindings` is `string`, the serialized setting type. The feature validates decoded entries when it reads them.
 
 ## Documentation and assertions
 

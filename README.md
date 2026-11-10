@@ -1,6 +1,6 @@
-# Foundry VTT v14 module template
+# Stylus Support for Foundry VTT v14
 
-A minimal TypeScript/npm workspace template for performance-first D&D 5e modules. The example module registers settings during `init`, initializes its verbose cache during `setup`, and displays **Hello World!** during `ready` in a D&D 5e world. The shared `foundry-core` package supplies system-independent Foundry helpers; `dnd5e-core` adds D&D 5e utilities, and `module-common` starts empty.
+Stylus Support adds a toolbar and configurable pen-button gestures to D&D 5e worlds with Swipe VTT. The left touch toggle applies a browser-local Swipe override. The top toolbar uses native token selection, measurement, and drawing tools. [Set up and calibrate the module](docs/stylus-support.md).
 
 The [project wiki](docs/README.md) collects complete utility and type references, architecture guidance, lifecycle and feature examples, testing, troubleshooting, and local build/release workflows.
 
@@ -27,7 +27,7 @@ Use `npm ci` for a clean, lockfile-based install. Commit `package-lock.json` whe
 
 All packages are private. Shared packages export TypeScript source so Vite bundles only consumed code, without a separate library build. Keep dependencies acyclic and do not casually modify `dnd5e-core`. Internal workspace versions remain `0.0.0`; only the root version changes on release.
 
-The [dnd5e-core API reference](packages/dnd5e-core/README.md) documents its nine utility namespaces, the verified D&D 5e 6.0.6 API target, and lookup semantics. The initial Hello World module does not consume these helpers, so unused core code does not enter its bundle.
+The [dnd5e-core API reference](packages/dnd5e-core/README.md) documents its nine utility namespaces, the verified D&D 5e 6.0.6 API target, and lookup semantics. Stylus Support uses native Foundry canvas controls, so unused D&D helpers do not enter its bundle.
 
 The [foundry-core API reference](packages/foundry-core/README.md) covers verified `KnownHookEvents` callback inference, custom hook strings, idempotent cleanup, typed settings with explicit registration, lifecycle-safe canvas reads, scene semantics, and guarded UUID resolution. It also lists deferred proposals. Shared helpers perform no automatic Foundry initialization on import.
 
@@ -66,7 +66,7 @@ TypeScript is pinned to the latest compatible stable 6.0.x line: at template cre
 
 Tooling-only npm overrides select patched Handlebars 4.7.10 and Minimatch 11 releases for transitive dependency advisories. These packages never enter the runtime bundle. Revisit the overrides when upstream dependencies include the fixes themselves.
 
-Use named imports from `lodash-es` when they help; typings are installed centrally. Unused Lodash code and unused workspace exports are tree-shaken. The example module consumes Foundry settings helpers; D&D utilities and Lodash remain unused and are removed from its bundle.
+Use named imports from `lodash-es` when they help. Typings are installed centrally. The stylus module consumes Foundry settings and hook helpers. The build removes unused Lodash code and workspace exports.
 
 API references: [Foundry v14 Hooks](https://foundryvtt.com/api/v14/classes/foundry.helpers.Hooks.html), [Notifications](https://foundryvtt.com/api/v14/classes/foundry.applications.ui.Notifications.html), [module manifests](https://foundryvtt.com/article/module-development/), and [DFreds type setup](https://github.com/DFreds/dfreds-foundry-types#readme).
 
@@ -83,27 +83,23 @@ packages/module/
 │   ├── settings.ts
 │   ├── foundry.d.ts
 │   └── features/
-│       └── example/
-│           ├── example.ts
-│           ├── example.types.d.ts
-│           └── example.utils.ts
+│       └── stylus/
 └── tests/
     ├── main.test.ts
     ├── lifecycle.test.ts
     ├── module-id.test.ts
     ├── settings.test.ts
     └── features/
-        └── example/
-            └── .gitkeep
+        └── stylus/
 ```
 
-The example feature files are empty module placeholders. Their mirrored test directory is retained with `.gitkeep`; add tests there when implementing actual behavior. Features that need initialization expose explicit functions called from the appropriate lifecycle handler.
+The stylus feature owns its settings form, calibration, Swipe integration, and board input. Features that need initialization expose explicit functions called from the appropriate lifecycle handler.
 
 Edit `packages/module/static/module.json` to change the ID, title, description, and author. Keep the ID a lowercase slug. If renaming workspace packages, update package names, workspace dependency names, and the root build command together, then run `npm install` to refresh links and the lockfile.
 
 The manifest is the only source of the module ID. Import `MODULE_ID` from the module's `src/module-id.ts` for settings namespaces and log prefixes. Vite reduces the consumed JSON field to a constant; the whole manifest is not bundled. Each additional module package should keep its own manifest and ID export, rather than putting an ID in a shared workspace.
 
-`packages/module/src/settings.ts` exports the module's shared `settings` and `verbose` instances. The visible example settings are `isVerbose` (client checkbox, default off), `testChoice` (world dropdown with three options, default `first`), and `testInteger` (world numeric slider from 0 to 10 with step 1, default 5). `settings.get('testChoice')` infers `'first' | 'second' | 'third'`; writes accept only those keys, and invalid native values are rejected at runtime. When verbose mode is enabled, `ready` logs the two test values with the module prefix. Disabled verbose logging skips both test-setting reads.
+`packages/module/src/settings.ts` exports the module's shared `settings` and `verbose` instances. The visible verbose checkbox defaults to off. The **Configure stylus buttons** submenu edits browser-local bindings. Hidden client settings store those bindings and the previous Swipe values needed to release an override.
 
 ```ts
 import { SettingsUtils } from '@template/foundry-core';
@@ -120,7 +116,8 @@ Put distributable assets in `packages/module/static`. Vite copies them and gener
 ```text
 dist/module/
 ├── module.json
-└── scripts/main.js
+├── scripts/main.js
+└── styles/stylus.css
 ```
 
 The bundle is browser-compatible, minified, tree-shaken, and has no source maps or bundled Foundry runtime. Future outputs can use siblings such as `dist/cli`; no CLI is implemented.
@@ -131,7 +128,7 @@ The bundle is browser-compatible, minified, tree-shaken, and has no source maps 
 
 `npm run check:examples` independently compiles every `ts`/`typescript` fence in `docs/**/*.md`, this README, and workspace READMEs using the installed APIs. Examples must include their imports; relative imports resolve from each document's directory. Diagnostics point to the original Markdown file and line. Examples are never executed or written to disk. This check also runs during `npm run typecheck` and `npm run check`; shell snippets, inline contextual examples, and explanatory declaration JSDoc examples are outside its scope.
 
-For local installation, copy `dist/module` into `<Foundry user data>/Data/modules/<module-id>`, with `module.json` directly inside that folder. Restart Foundry, open a D&D 5e world, and enable the module in Manage Modules. The notification appears when the world finishes loading. Actual in-app behavior requires a running licensed Foundry v14 installation; unit tests check the integration calls.
+For local installation, copy `dist/module` into `<Foundry user data>/Data/modules/foundry-stylus-support`, with `module.json` directly inside that folder. Enable Swipe VTT and Stylus Support in a D&D 5e world. Open a scene and use the floating button on the left to enable the stylus toolbar. [Installation and calibration](docs/stylus-support.md)
 
 ## Releases
 
