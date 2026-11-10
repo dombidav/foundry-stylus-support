@@ -80,6 +80,7 @@ export function startStylus(): void {
         toggle.disabled = true;
     });
     HooksUtils.on('renderSceneControls', syncTools);
+    ui.controls.addEventListener('activate', syncTools);
     HooksUtils.on('swipeVtt.enabled', () => queueMicrotask(syncMode));
     HooksUtils.on('swipeVtt.disabled', () => queueMicrotask(syncMode));
     HooksUtils.on('clientSettingChanged', (key: string) => {
@@ -93,21 +94,24 @@ export function startStylus(): void {
 }
 
 export function refreshStylusBindings(): void {
-    if (!board || !tipGestures) return;
-    penInput?.stop();
+    if (!penInput || !canvas) return;
     const bindings = readBindings(settings.get('stylusBindings'));
     hasRulerBindings = bindings.some(
         ({ signal, action }) => signal !== null && action === 'activeTool',
     );
-    penInput = listenForPenCommands(
-        board,
-        bindings,
-        (binding, event) => {
-            void executeBinding(binding, event).catch(reportError);
-        },
-        tipGestures.hasHandled,
-        tipGestures.cancel,
-    );
+    penInput.setBindings(bindings);
+    if (!hasRulerBindings) nativeGestures?.clearKeptRuler();
+    if (!nativeGestures && penInput.hasBindings()) {
+        nativeGestures = installNativeGestureControls(
+            canvas,
+            getActiveToolId,
+            () => hasRulerBindings,
+            (pointerId) => penInput?.isClaimed(pointerId) ?? false,
+            (isReady) => {
+                snapStatus.hidden = !isReady;
+            },
+        );
+    }
 }
 
 function syncMode(): void {
@@ -126,19 +130,18 @@ function syncMode(): void {
             tipGestures = createTipGestures(
                 board,
                 canvas,
-                getActiveToolId,
+                () => customTool?.id,
                 reportError,
             );
-            refreshStylusBindings();
-            nativeGestures = installNativeGestureControls(
-                canvas,
-                getActiveToolId,
-                () => hasRulerBindings,
-                (pointerId) => penInput?.isClaimed(pointerId) ?? false,
-                (isReady) => {
-                    snapStatus.hidden = !isReady;
+            penInput = listenForPenCommands(
+                board,
+                (binding, event) => {
+                    void executeBinding(binding, event).catch(reportError);
                 },
+                tipGestures.hasHandled,
+                tipGestures.cancel,
             );
+            refreshStylusBindings();
             const stopCreate = HooksUtils.on('createDrawing', onCreateDrawing);
             const stopDelete = HooksUtils.on('deleteDrawing', onDeleteDrawing);
             stopDrawingHistory = () => {
@@ -206,6 +209,7 @@ function syncTools(): void {
     }
     const tools = getAvailableTools();
     const activeId = getActiveToolId();
+    if (activeId !== 'measure') nativeGestures?.clearKeptRuler();
     for (const [id, button] of toolbarButtons) {
         const tool = tools.find((available) => available.id === id);
         const isHidden = !tool;
@@ -374,7 +378,10 @@ function undoDrawing(): Promise<void> | undefined {
                     history.pop();
                     continue;
                 }
-                if (!drawing.canUserModify(game.user, 'delete')) {
+                if (
+                    drawing.locked ||
+                    !drawing.canUserModify(game.user, 'delete')
+                ) {
                     ui.notifications.warn(
                         'You cannot delete the latest stylus drawing.',
                     );

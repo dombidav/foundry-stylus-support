@@ -65,7 +65,7 @@ export function createTipGestures(
         }
         if (pointerId !== event.pointerId) return false;
         if (event.type === 'pointermove') {
-            if (preview) addPoint(event);
+            if (preview) addPoint(event, preview);
             else
                 hasDragged ||=
                     Math.hypot(event.clientX - lastX, event.clientY - lastY) >
@@ -75,7 +75,7 @@ export function createTipGestures(
                 if (getTool() !== tool || (game.paused && !game.user.isGM))
                     return true;
                 if (preview) {
-                    addPoint(event);
+                    addPoint(event, preview);
                     selectLassoTokens(current, points, shouldAdd);
                 } else if (
                     !hasDragged &&
@@ -108,7 +108,7 @@ export function createTipGestures(
         return true;
     }
 
-    function addPoint(event: PointerEvent): void {
+    function addPoint(event: PointerEvent, line: PIXI.Graphics): void {
         const dx = event.clientX - lastX;
         const dy = event.clientY - lastY;
         if (dx * dx + dy * dy < 9) return;
@@ -116,8 +116,12 @@ export function createTipGestures(
             x: event.clientX,
             y: event.clientY,
         });
+        // Pixi finalizes the open path during rendering. Start the next batch at the last
+        // sampled point so lineTo cannot fall back to (0, 0) between frames.
+        if (!line.currentPath?.points.length)
+            line.moveTo(points.at(-2)!, points.at(-1)!);
+        line.lineTo(point.x, point.y);
         points.push(point.x, point.y);
-        preview?.lineTo(point.x, point.y);
         lastX = event.clientX;
         lastY = event.clientY;
     }

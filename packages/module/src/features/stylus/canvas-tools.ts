@@ -24,7 +24,7 @@ export function findDrawingToErase(
             !document.canUserModify(game.user, 'delete')
         )
             continue;
-        if (!isPointOnDrawing(drawing, point, radius)) continue;
+        if (!isPointOnDrawing(current, drawing, point, radius)) continue;
         if (!top || compareDrawings(drawing, top) > 0) top = drawing;
     }
     return top;
@@ -55,6 +55,7 @@ function drawingSort(document: foundry.documents.DrawingDocument): number {
 }
 
 function isPointOnDrawing(
+    current: foundry.canvas.Canvas,
     drawing: foundry.canvas.placeables.Drawing,
     point: StylusPoint,
     radius: number,
@@ -70,12 +71,21 @@ function isPointOnDrawing(
         return shape.testPoint(point);
     }
     if (!(shape instanceof foundry.data.PolygonShapeData)) return false;
-    if (document.fillType && document.fillAlpha && shape.testPoint(point))
-        return true;
-    return isNearPath(
-        point,
-        shape.points,
-        radius + (document.strokeWidth ?? 0) / 2,
+    // Foundry turns freehand control points into a smoothed polygon in Pixi. Reuse the
+    // tessellated path for the tap instead of testing the chords between control points.
+    const data = drawing.shape.geometry.graphicsData[0];
+    if (!data || !(data.shape instanceof PIXI.Polygon)) return false;
+    const path = data.shape;
+    const local = drawing.shape.toLocal(point, current.stage);
+    if (data.fillStyle.visible && path.contains(local.x, local.y)) return true;
+    return (
+        data.lineStyle.visible &&
+        isNearPath(
+            local,
+            path.points,
+            radius + data.lineStyle.width / 2,
+            path.closeStroke,
+        )
     );
 }
 
@@ -83,10 +93,12 @@ export function isNearPath(
     point: StylusPoint,
     points: readonly number[],
     radius: number,
+    isClosed = false,
 ): boolean {
-    for (let index = 2; index + 1 < points.length; index += 2) {
-        const x = points[index - 2]!;
-        const y = points[index - 1]!;
+    const radiusSquared = radius * radius;
+    let x = (isClosed ? points.at(-2) : points[0])!;
+    let y = (isClosed ? points.at(-1) : points[1])!;
+    for (let index = isClosed ? 0 : 2; index + 1 < points.length; index += 2) {
         const dx = points[index]! - x;
         const dy = points[index + 1]! - y;
         const lengthSquared = dx * dx + dy * dy;
@@ -101,8 +113,10 @@ export function isNearPath(
             : 0;
         const distanceX = point.x - x - t * dx;
         const distanceY = point.y - y - t * dy;
-        if (distanceX * distanceX + distanceY * distanceY <= radius * radius)
+        if (distanceX * distanceX + distanceY * distanceY <= radiusSquared)
             return true;
+        x = points[index]!;
+        y = points[index + 1]!;
     }
     return false;
 }
@@ -113,8 +127,6 @@ export function selectLassoTokens(
     shouldAdd: boolean,
 ): void {
     if (points.length < 6) return;
-    const polygon = new PIXI.Polygon(points);
-    const bounds = new PIXI.Rectangle();
     let left = Infinity;
     let top = Infinity;
     let right = -Infinity;
@@ -128,24 +140,53 @@ export function selectLassoTokens(
         bottom = Math.max(bottom, y);
     }
     if (left === right || top === bottom) return;
-    bounds.x = left;
-    bounds.y = top;
-    bounds.width = right - left;
-    bounds.height = bottom - top;
+    const polygon = new PIXI.Polygon(points);
+    const bounds = new PIXI.Rectangle(left, top, right - left, bottom - top);
     const candidates =
         current.tokens.quadtree?.getObjects(bounds) ??
         current.tokens.placeables;
     const selected = new Set<foundry.canvas.placeables.Token>();
     for (const token of candidates) {
-        if (!token.isVisible) continue;
+        if (
+            !token.isVisible ||
+            !token.visible ||
+            !token.renderable ||
+            !token.interactive
+        )
+            continue;
         const center = token.center;
         if (polygon.contains(center.x, center.y)) selected.add(token);
     }
+    // The v14 selection UI supports batching, but the installed declarations omit these fields.
+    const directory = 'placeables' in ui ? ui.placeables : undefined;
+    const renderDirectory =
+        directory && typeof directory === 'object' && 'render' in directory
+            ? directory.render
+            : undefined;
+    const canBatch = typeof renderDirectory === 'function';
+    const releaseOptions = { renderSidebar: !canBatch };
+    const controlOptions = { releaseOthers: false, renderSidebar: !canBatch };
+    let hasChanged = false;
     if (!shouldAdd)
         for (const token of current.tokens.controlled) {
-            if (!selected.has(token)) token.release();
+            if (!selected.has(token))
+                hasChanged = token.release(releaseOptions) || hasChanged;
         }
     for (const token of selected) {
-        if (!token.controlled) token.control({ releaseOthers: false });
+        if (!token.controlled)
+            hasChanged = token.control(controlOptions) || hasChanged;
+    }
+    if (hasChanged && canBatch) {
+        renderDirectory.call(directory);
+        const palette =
+            'placeablesPalette' in ui ? ui.placeablesPalette : undefined;
+        if (
+            game.activeTool === 'select' &&
+            palette &&
+            typeof palette === 'object' &&
+            'render' in palette &&
+            typeof palette.render === 'function'
+        )
+            palette.render();
     }
 }

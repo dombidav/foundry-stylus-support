@@ -3,47 +3,59 @@ import { type StylusBinding } from './stylus.types.js';
 
 export function listenForPenCommands(
     board: HTMLCanvasElement,
-    bindings: readonly StylusBinding[],
     onCommand: (binding: StylusBinding, event: PointerEvent) => void,
     hasHandledTip: (event: PointerEvent) => boolean,
     onResetTip: () => void,
 ) {
     const down = new Map<number, StylusBinding>();
     const move = new Map<number, StylusBinding>();
-    for (const binding of bindings) {
-        if (!binding.signal || binding.action === 'none') continue;
-        if (
-            (binding.action === 'macro' || binding.action === 'tool') &&
-            !binding.target
-        )
-            continue;
-        const commands = binding.signal.type === 'pointerdown' ? down : move;
-        commands.set(binding.signal.buttons, binding);
-    }
     const listeners = new AbortController();
     const options = { capture: true, signal: listeners.signal };
     const masks = new Map<number, number>();
     // An entry claims the gesture. Its value records whether a command has run during this contact.
     const claimed = new Map<number, boolean>();
     let released: PointerEvent | undefined;
+    let tipPointerId: number | undefined;
+    let isListeningForMoves = false;
 
-    function onPointer(event: PointerEvent): void {
-        if (event.type === 'pointerdown' && event.target !== board) return;
-        if (event.type === 'pointerdown') released = undefined;
-        if (
-            event.pointerType === 'pen' &&
-            event.target === board &&
-            hasHandledCommand(event)
-        )
+    function onDown(event: PointerEvent): void {
+        if (event.target !== board) return;
+        released = undefined;
+        if (event.pointerType === 'pen' && hasHandledCommand(event)) {
+            syncMoveListener();
             return;
-        if (hasHandledTip(event)) consume(event);
+        }
+        if (hasHandledTip(event)) {
+            tipPointerId ??= event.pointerId;
+            consume(event);
+            syncMoveListener();
+        }
+    }
+
+    function onMove(event: PointerEvent): void {
+        if (tipPointerId === event.pointerId) {
+            hasHandledTip(event);
+            consume(event);
+        } else if (event.target === board && event.pointerType === 'pen') {
+            hasHandledCommand(event);
+        }
+    }
+
+    function syncMoveListener(): void {
+        const shouldListen =
+            move.size > 0 || claimed.size > 0 || tipPointerId !== undefined;
+        if (isListeningForMoves === shouldListen) return;
+        isListeningForMoves = shouldListen;
+        // Hover-to-contact bindings need movement samples. Other input only needs them while claimed.
+        if (shouldListen) window.addEventListener('pointermove', onMove, true);
+        else window.removeEventListener('pointermove', onMove, true);
     }
 
     function hasHandledCommand(event: PointerEvent): boolean {
         const { pointerId, type, buttons } = event;
         const isDown = type === 'pointerdown';
-        const previous = masks.get(pointerId) ?? 0;
-        if (move.size) {
+        const previous = move.size ? (masks.get(pointerId) ?? 0) : 0;
+        if (move.size && buttons !== previous) {
             if (buttons) masks.set(pointerId, buttons);
             else masks.delete(pointerId);
         }
@@ -66,14 +78,19 @@ export function listenForPenCommands(
     }
 
     function onEnd(event: PointerEvent): void {
+        const { pointerId } = event;
+        const isTip = tipPointerId === pointerId;
         let wasClaimed = false;
         if (event.pointerType === 'pen') {
-            masks.delete(event.pointerId);
-            wasClaimed = claimed.delete(event.pointerId);
+            masks.delete(pointerId);
+            wasClaimed = claimed.delete(pointerId);
         }
-        if (!wasClaimed && !hasHandledTip(event)) return;
+        if (!wasClaimed && !isTip) return;
+        if (isTip) tipPointerId = undefined;
         released = event.type === 'pointerup' ? event : undefined;
         consume(event);
+        syncMoveListener();
+        if (isTip) hasHandledTip(event);
     }
 
     function onClick(event: MouseEvent): void {
@@ -91,20 +108,18 @@ export function listenForPenCommands(
     }
 
     // Foundry/Pixi and Swipe may have board listeners already. Capture one level earlier and claim only matched pen gestures.
-    window.addEventListener('pointerdown', onPointer, options);
-    window.addEventListener('pointermove', onPointer, options);
+    window.addEventListener('pointerdown', onDown, options);
     window.addEventListener('pointerup', onEnd, options);
     window.addEventListener('pointercancel', onEnd, options);
-    if (move.size)
-        board.addEventListener(
-            'pointerleave',
-            (event) => masks.delete(event.pointerId),
-            { signal: listeners.signal },
-        );
+    board.addEventListener(
+        'pointerleave',
+        (event) => masks.delete(event.pointerId),
+        { signal: listeners.signal },
+    );
     board.addEventListener(
         'lostpointercapture',
         (event) => {
-            hasHandledTip(event);
+            if (tipPointerId === event.pointerId) hasHandledTip(event);
         },
         { signal: listeners.signal },
     );
@@ -117,12 +132,39 @@ export function listenForPenCommands(
             claimed.clear();
             masks.clear();
             released = undefined;
+            tipPointerId = undefined;
             onResetTip();
+            syncMoveListener();
         },
         { signal: listeners.signal },
     );
     return {
-        stop: () => listeners.abort(),
+        setBindings(bindings: readonly StylusBinding[]): void {
+            down.clear();
+            move.clear();
+            for (const binding of bindings) {
+                if (!binding.signal || binding.action === 'none') continue;
+                if (
+                    (binding.action === 'macro' || binding.action === 'tool') &&
+                    !binding.target
+                )
+                    continue;
+                (binding.signal.type === 'pointerdown' ? down : move).set(
+                    binding.signal.buttons,
+                    binding,
+                );
+            }
+            if (!move.size) masks.clear();
+            syncMoveListener();
+        },
+        hasBindings: () => down.size > 0 || move.size > 0,
+        stop(): void {
+            listeners.abort();
+            if (isListeningForMoves) {
+                window.removeEventListener('pointermove', onMove, true);
+                isListeningForMoves = false;
+            }
+        },
         isClaimed: (pointerId: number) => claimed.has(pointerId),
     };
 }

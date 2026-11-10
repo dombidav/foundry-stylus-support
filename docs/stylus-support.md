@@ -12,7 +12,7 @@ The toolbar offers Select tokens, Measure distance, Freehand draw, Draw rectangl
 
 | Button action | Behavior |
 | --- | --- |
-| **Active tool action** | Finish an open polygon with at least three fixed vertices or add a waypoint at the button tap during a measurement. A learned binding for this action keeps a pen measurement open when the tip lifts so it can accept waypoints. |
+| **Active tool action** | Finish an open polygon with at least three fixed vertices or add a waypoint at the button tap during a measurement. A learned binding for this action keeps a pen measurement open when the tip lifts so it can accept waypoints. A measurement kept open by Stylus Support clears when you switch tools, disable the mode, or remove the last binding for this action. |
 | **Remove last point** | Remove the last placed polygon vertex or ruler waypoint. If a measurement has only its origin and live destination, clear it. |
 | **Cancel current gesture** | Discard the active drawing preview, measurement, or lasso. |
 | **Invert grid snapping for the next stroke** | Arm the override and show its status on the toolbar. The next pen drag for a rectangle, ellipse, polygon, or measurement uses the opposite of the native Shift snap modifier. A second press disarms the override. |

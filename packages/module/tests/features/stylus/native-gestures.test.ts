@@ -185,6 +185,37 @@ describe('native stylus actions', () => {
         expect(modifiers).toEqual([true, false]);
         controls.stop();
     });
+
+    it('clears only the ruler kept open by the module', () => {
+        const { current, manager, canDispatch } = fixture();
+        manager.interactionData.ruler = true;
+        canDispatch.mockImplementation((_action, event) => {
+            if (event instanceof PenEvent && event.ctrlKey) {
+                manager.interactionData.released = true;
+            }
+            return true;
+        });
+        const controls = installNativeGestureControls(
+            current,
+            () => 'measure',
+            () => true,
+            () => false,
+            vi.fn(),
+        );
+        const pen = new PenEvent();
+        pen.ctrlKey = true;
+        manager.callback('dragLeftDrop', pen);
+        controls.clearKeptRuler();
+        expect(manager.cancel).not.toHaveBeenCalled();
+
+        pen.ctrlKey = false;
+        manager.callback('dragLeftDrop', pen);
+        controls.clearKeptRuler();
+        expect(manager.interactionData.cancelled).toBe(true);
+        expect(manager.cancel).toHaveBeenCalledOnce();
+        controls.stop();
+        expect(manager.cancel).toHaveBeenCalledOnce();
+    });
 });
 
 it('hits open strokes only near their actual segments, including zero-length segments', () => {
@@ -192,4 +223,5 @@ it('hits open strokes only near their actual segments, including zero-length seg
     expect(isNearPath({ x: 1, y: 1 }, points, 2)).toBe(true);
     expect(isNearPath({ x: 19, y: 22 }, points, 2)).toBe(true);
     expect(isNearPath({ x: 10, y: 10 }, points, 2)).toBe(false);
+    expect(isNearPath({ x: 10, y: 10 }, points, 2, true)).toBe(true);
 });

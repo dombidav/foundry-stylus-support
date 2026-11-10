@@ -16,13 +16,34 @@ export function installNativeGestureControls(
     let snapPointer: number | undefined;
     let isShiftOverride = false;
     let isVertexOverride = false;
+    let keptRuler: Record<string, unknown> | undefined;
+
+    function clearKeptRuler(): void {
+        const interaction = keptRuler;
+        keptRuler = undefined;
+        if (
+            interaction &&
+            manager.interactionData === interaction &&
+            current.controls.ruler.active
+        ) {
+            interaction.cancelled = true;
+            manager.cancel();
+        }
+    }
 
     const canContinueGesture: typeof canContinueNative = function (
         action,
         event,
         ...args
     ) {
-        if (!isMounted || !(event instanceof PIXI.FederatedPointerEvent))
+        if (
+            !isMounted ||
+            (action !== 'dragLeftStart' &&
+                action !== 'dragLeftMove' &&
+                action !== 'dragLeftDrop' &&
+                action !== 'dragLeftCancel') ||
+            !(event instanceof PIXI.FederatedPointerEvent)
+        )
             return canContinueNative.call(manager, action, event, ...args);
         if (action === 'dragLeftCancel' && !event.defaultPrevented)
             snapPointer = undefined;
@@ -50,6 +71,8 @@ export function installNativeGestureControls(
         const shouldContinue =
             isDrop &&
             manager.interactionData.ruler === true &&
+            !event.ctrlKey &&
+            !event.metaKey &&
             shouldKeepRuler();
         if (!shouldOverrideSnap && !shouldContinue)
             return canContinueNative.call(manager, action, event, ...args);
@@ -76,7 +99,15 @@ export function installNativeGestureControls(
         if (shouldOverrideSnap) event.shiftKey = isShiftOverride;
         if (shouldContinue) event.ctrlKey = true;
         try {
-            return canContinueNative.call(manager, action, event, ...args);
+            const canContinue = canContinueNative.call(
+                manager,
+                action,
+                event,
+                ...args,
+            );
+            if (shouldContinue && manager.interactionData.released === true)
+                keptRuler = manager.interactionData;
+            return canContinue;
         } finally {
             event.shiftKey = wasShift;
             event.ctrlKey = wasCtrl;
@@ -95,11 +126,13 @@ export function installNativeGestureControls(
     manager.callback = canContinueGesture;
 
     return {
+        clearKeptRuler,
         toggleSnap(): void {
             isSnapReady = !isSnapReady;
             showSnapReady(isSnapReady);
         },
         stop(): void {
+            clearKeptRuler();
             isMounted = false;
             if (manager.callback === canContinueGesture) {
                 if (hasOwnCallback) manager.callback = canContinueNative;
