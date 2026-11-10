@@ -25,6 +25,8 @@ Each learned signal consists of a pen event type and a `buttons` mask. On the te
 
 The feature claims configured pen gestures and the primary input for the eraser and lasso on the game board. Swipe retains finger handling. Foundry checks macro permissions again at execution time. Swipe settings with GM restrictions can block a local override. The module requires Swipe to report an active touch manager before displaying the toolbar. [Foundry Macro](https://foundryvtt.com/api/v14/classes/foundry.documents.Macro.html#canExecute)
 
+Some browsers emit a legacy touch sequence alongside the pen pointer sequence. Stylus Support filters the duplicate canvas sequence before Swipe translates it to mouse clicks. When the browser supplies no touch device type, the filter matches a trusted pen down by input timestamp and position. Ambiguous events containing finger contacts still reach Swipe. [Swipe VTT 2.12.4](https://github.com/crlngn/swipe-vtt/releases/tag/v2.12.4), [Chromium touch dispatch](https://github.com/chromium/chromium/blob/main/third_party/blink/renderer/core/input/touch_event_manager.cc)
+
 ## Input diagnostics
 
 Enable **Verbose mode** in Stylus Support’s module settings before reproducing an input issue. With stylus mode active, the log records canvas pen events, button-state changes during movement, recognized button actions, and Foundry interaction callbacks with their state before and after dispatch. The calibration pad also records pen events during learning and testing. Each entry has a sequence number and a monotonic timestamp. When available, the underlying browser event timestamp ties the Foundry callback to the raw input.

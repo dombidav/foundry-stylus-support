@@ -1,6 +1,7 @@
 import { stylusDiagnostics } from '../../settings.ts';
 import { getContactMask } from './bindings.ts';
 import { pointerDetails } from './diagnostics.ts';
+import { listenForPenTouchDuplicates } from './pen-touch.ts';
 import { type StylusBinding } from './stylus.types.js';
 
 export function listenForPenCommands(
@@ -13,6 +14,10 @@ export function listenForPenCommands(
     const move = new Map<number, StylusBinding>();
     const listeners = new AbortController();
     const options = { capture: true, signal: listeners.signal };
+    const touchDuplicates = listenForPenTouchDuplicates(
+        board,
+        listeners.signal,
+    );
     const masks = new Map<number, number>();
     // An entry claims the gesture. Its value records whether a command has run during this contact.
     const claimed = new Map<number, boolean>();
@@ -60,9 +65,12 @@ export function listenForPenCommands(
         if (event.target !== board) return;
         if (traceListeners) tracePointer(event);
         released = undefined;
-        if (event.pointerType === 'pen' && hasHandledCommand(event)) {
-            syncMoveListener();
-            return;
+        if (event.pointerType === 'pen') {
+            touchDuplicates.rememberPenDown(event);
+            if (hasHandledCommand(event)) {
+                syncMoveListener();
+                return;
+            }
         }
         if (hasHandledTip(event)) {
             tipPointerId ??= event.pointerId;
@@ -211,6 +219,7 @@ export function listenForPenCommands(
             claimed.clear();
             masks.clear();
             traceMasks.clear();
+            touchDuplicates.reset();
             released = undefined;
             tipPointerId = undefined;
             onResetTip();
@@ -263,6 +272,7 @@ export function listenForPenCommands(
         hasBindings: () => down.size > 0 || move.size > 0,
         stop(): void {
             stopTracing();
+            touchDuplicates.reset();
             listeners.abort();
             if (isListeningForMoves) {
                 window.removeEventListener('pointermove', onMove, true);
