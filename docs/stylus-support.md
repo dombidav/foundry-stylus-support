@@ -23,6 +23,12 @@ Each learned signal consists of a pen event type and a `buttons` mask. On the te
 
 The feature claims configured pen gestures and the primary input for the eraser and lasso on the game board. Swipe retains finger handling. Foundry checks macro permissions again at execution time. Swipe settings with GM restrictions can block a local override. The module requires Swipe to report an active touch manager before displaying the toolbar. [Foundry Macro](https://foundryvtt.com/api/v14/classes/foundry.documents.Macro.html#canExecute)
 
+## Input diagnostics
+
+Enable **Verbose mode** in Stylus Support’s module settings before reproducing an input issue. With stylus mode active, the log records canvas pen events, button-state changes during movement, recognized button actions, and Foundry interaction callbacks with their state before and after dispatch. The calibration pad also records pen events during learning and testing. Each entry has a sequence number and a monotonic timestamp. When available, the underlying browser event timestamp ties the Foundry callback to the raw input.
+
+Open **Configure stylus buttons → Export diagnostics (JSON)** to download the current session log, including after turning Verbose mode off. Each export adds an event as the last entry in that file. The log keeps the latest 16,384 entries in memory, reports older entries it discarded, and resets on reload.
+
 ## Foundry test checklist
 
 In a running world, test one-finger token selection, two-finger pan and pinch, all eight tools, and both button signals alongside ordinary mouse input. Check that a short mapped tap runs its action once. Test overlapping drawings, a concave lasso, polygon completion, ruler waypoints, and that the snap override expires after a single pen drag. Test switching scenes, reloading before releasing the override, using another browser, and enabling with GM-locked Swipe settings.

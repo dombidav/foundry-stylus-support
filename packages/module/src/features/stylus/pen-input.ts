@@ -1,4 +1,6 @@
+import { stylusDiagnostics } from '../../settings.ts';
 import { getContactMask } from './bindings.ts';
+import { pointerDetails } from './diagnostics.ts';
 import { type StylusBinding } from './stylus.types.js';
 
 export function listenForPenCommands(
@@ -17,9 +19,46 @@ export function listenForPenCommands(
     let released: PointerEvent | undefined;
     let tipPointerId: number | undefined;
     let isListeningForMoves = false;
+    let traceListeners: AbortController | undefined;
+    const traceMasks = new Map<number, number>();
+
+    function tracePointer(event: PointerEvent): void {
+        if (event.pointerType !== 'pen') return;
+        const previous = traceMasks.get(event.pointerId);
+        if (event.target !== board && !previous) return;
+        if (event.type === 'pointermove' && (previous ?? 0) === event.buttons)
+            return;
+        if (
+            event.type === 'pointerup' ||
+            event.type === 'pointercancel' ||
+            !event.buttons
+        )
+            traceMasks.delete(event.pointerId);
+        else traceMasks.set(event.pointerId, event.buttons);
+        stylusDiagnostics.record('pointer', event.type, {
+            ...pointerDetails(event),
+            previousButtons: previous,
+            isOnBoard: event.target === board,
+        });
+    }
+
+    function traceMouse(event: MouseEvent): void {
+        stylusDiagnostics.record('pointer', event.type, {
+            eventTimeMs: event.timeStamp,
+            pointerType:
+                'pointerType' in event ? String(event.pointerType) : undefined,
+            button: event.button,
+            buttons: event.buttons,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            isTrusted: event.isTrusted,
+            isDefaultPrevented: event.defaultPrevented,
+        });
+    }
 
     function onDown(event: PointerEvent): void {
         if (event.target !== board) return;
+        if (traceListeners) tracePointer(event);
         released = undefined;
         if (event.pointerType === 'pen' && hasHandledCommand(event)) {
             syncMoveListener();
@@ -28,11 +67,16 @@ export function listenForPenCommands(
         if (hasHandledTip(event)) {
             tipPointerId ??= event.pointerId;
             consume(event);
+            if (traceListeners && event.pointerType === 'pen')
+                stylusDiagnostics.record('stylus', 'tipClaimed', {
+                    pointerId: event.pointerId,
+                });
             syncMoveListener();
         }
     }
 
     function onMove(event: PointerEvent): void {
+        if (traceListeners) tracePointer(event);
         if (tipPointerId === event.pointerId) {
             hasHandledTip(event);
             consume(event);
@@ -43,7 +87,10 @@ export function listenForPenCommands(
 
     function syncMoveListener(): void {
         const shouldListen =
-            move.size > 0 || claimed.size > 0 || tipPointerId !== undefined;
+            move.size > 0 ||
+            claimed.size > 0 ||
+            tipPointerId !== undefined ||
+            !!traceListeners;
         if (isListeningForMoves === shouldListen) return;
         isListeningForMoves = shouldListen;
         // Hover-to-contact bindings need movement samples. Other input only needs them while claimed.
@@ -64,20 +111,38 @@ export function listenForPenCommands(
             : move.get(getContactMask(event, previous));
         const isPrecedingHover =
             isDown && (buttons & 1) === 0 && move.has(buttons | 1);
-        if ((binding || isPrecedingHover) && !claimed.has(pointerId))
+        if ((binding || isPrecedingHover) && !claimed.has(pointerId)) {
             claimed.set(pointerId, false);
+            if (traceListeners && !binding)
+                stylusDiagnostics.record('stylus', 'hoverClaimed', {
+                    pointerId,
+                    buttons,
+                });
+        }
         if (!claimed.has(pointerId)) return false;
         consume(event);
         if ((previous & 1) !== 0 && (buttons & 1) === 0)
             claimed.set(pointerId, false);
         if (binding && claimed.get(pointerId) === false) {
             claimed.set(pointerId, true);
+            if (traceListeners)
+                stylusDiagnostics.record('stylus', 'buttonMatched', {
+                    pointerId,
+                    eventTimeMs: event.timeStamp,
+                    action: binding.action,
+                    tool:
+                        binding.action === 'tool' ? binding.target : undefined,
+                    buttons,
+                    signalType: binding.signal?.type,
+                    signalButtons: binding.signal?.buttons,
+                });
             onCommand(binding, event);
         }
         return true;
     }
 
     function onEnd(event: PointerEvent): void {
+        if (traceListeners) tracePointer(event);
         const { pointerId } = event;
         const isTip = tipPointerId === pointerId;
         let wasClaimed = false;
@@ -89,11 +154,20 @@ export function listenForPenCommands(
         if (isTip) tipPointerId = undefined;
         released = event.type === 'pointerup' ? event : undefined;
         consume(event);
+        if (traceListeners && event.pointerType === 'pen')
+            stylusDiagnostics.record('stylus', 'releaseConsumed', {
+                pointerId,
+                eventTimeMs: event.timeStamp,
+                inputEvent: event.type,
+                isTip,
+                wasClaimed,
+            });
         syncMoveListener();
         if (isTip) hasHandledTip(event);
     }
 
     function onClick(event: MouseEvent): void {
+        if (traceListeners && event.target === board) traceMouse(event);
         if (
             event.target === board &&
             'pointerType' in event &&
@@ -113,12 +187,16 @@ export function listenForPenCommands(
     window.addEventListener('pointercancel', onEnd, options);
     board.addEventListener(
         'pointerleave',
-        (event) => masks.delete(event.pointerId),
+        (event) => {
+            masks.delete(event.pointerId);
+            if (traceListeners) tracePointer(event);
+        },
         { signal: listeners.signal },
     );
     board.addEventListener(
         'lostpointercapture',
         (event) => {
+            if (traceListeners) tracePointer(event);
             if (tipPointerId === event.pointerId) hasHandledTip(event);
         },
         { signal: listeners.signal },
@@ -129,8 +207,10 @@ export function listenForPenCommands(
     window.addEventListener(
         'blur',
         () => {
+            if (traceListeners) stylusDiagnostics.record('pointer', 'blur');
             claimed.clear();
             masks.clear();
+            traceMasks.clear();
             released = undefined;
             tipPointerId = undefined;
             onResetTip();
@@ -138,7 +218,30 @@ export function listenForPenCommands(
         },
         { signal: listeners.signal },
     );
+
+    function stopTracing(): void {
+        traceListeners?.abort();
+        traceListeners = undefined;
+        traceMasks.clear();
+    }
+
     return {
+        setDiagnostics(isEnabled: boolean): void {
+            if (isEnabled === !!traceListeners) return;
+            if (isEnabled) {
+                traceListeners = new AbortController();
+                const { signal } = traceListeners;
+                board.addEventListener('pointerenter', tracePointer, {
+                    signal,
+                });
+                board.addEventListener('gotpointercapture', tracePointer, {
+                    signal,
+                });
+                for (const type of ['mousedown', 'mouseup'] as const)
+                    board.addEventListener(type, traceMouse, { signal });
+            } else stopTracing();
+            syncMoveListener();
+        },
         setBindings(bindings: readonly StylusBinding[]): void {
             down.clear();
             move.clear();
@@ -159,6 +262,7 @@ export function listenForPenCommands(
         },
         hasBindings: () => down.size > 0 || move.size > 0,
         stop(): void {
+            stopTracing();
             listeners.abort();
             if (isListeningForMoves) {
                 window.removeEventListener('pointermove', onMove, true);

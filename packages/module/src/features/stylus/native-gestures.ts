@@ -1,5 +1,10 @@
+import { stylusDiagnostics } from '../../settings.ts';
+import { pointerDetails } from './diagnostics.ts';
 import { type NativeGestureAction, type ToolId } from './stylus.types.js';
 import { canOverrideSnap } from './tools.ts';
+
+const TRACED_ACTION =
+    /^(click(Left|Right)2?|unclickLeft|drag(Left|Right)(Start|Drop|Cancel))$/;
 
 export function installNativeGestureControls(
     current: foundry.canvas.Canvas,
@@ -12,6 +17,7 @@ export function installNativeGestureControls(
     const canContinueNative = manager.callback;
     const hasOwnCallback = Object.hasOwn(manager, 'callback');
     let isMounted = true;
+    let isTracing = false;
     let isSnapReady = false;
     let snapPointer: number | undefined;
     let isShiftOverride = false;
@@ -123,10 +129,73 @@ export function installNativeGestureControls(
             if (isDrop && shouldOverrideSnap) snapPointer = undefined;
         }
     };
+
+    function interactionDetails() {
+        const { preview, shape, cancelled, released } = manager.interactionData;
+        return {
+            state: manager.state,
+            hasPreview: preview != null,
+            points:
+                shape instanceof foundry.data.PolygonShapeData
+                    ? shape.points.length / 2
+                    : undefined,
+            isCancelled: cancelled === true,
+            isReleased: released === true,
+        };
+    }
+
+    const canContinueTracedGesture: typeof canContinueNative = function (
+        action,
+        event,
+        ...args
+    ) {
+        if (!isTracing || !TRACED_ACTION.test(action))
+            return canContinueGesture(action, event, ...args);
+
+        const pointer =
+            event instanceof PIXI.FederatedPointerEvent ? event : undefined;
+        const native = pointer?.nativeEvent;
+        const pointerId = pointer?.pointerId;
+        stylusDiagnostics.record('foundry', action + ':before', {
+            ...(pointer
+                ? pointerDetails(pointer)
+                : { eventTimeMs: event.timeStamp }),
+            nativeEvent: native?.type,
+            nativeEventTimeMs:
+                native && 'timeStamp' in native ? native.timeStamp : undefined,
+            ...interactionDetails(),
+            inputEvent: event.type,
+            tool: getTool(),
+            isClaimed: pointerId !== undefined && isClaimed(pointerId),
+        });
+        let didContinue: boolean | undefined;
+        try {
+            didContinue = canContinueGesture(action, event, ...args);
+            return didContinue;
+        } finally {
+            stylusDiagnostics.record('foundry', action + ':after', {
+                ...interactionDetails(),
+                pointerId,
+                didContinue,
+                isDefaultPrevented: event.defaultPrevented,
+            });
+        }
+    };
     manager.callback = canContinueGesture;
 
     return {
         clearKeptRuler,
+        setDiagnostics(isEnabled: boolean): void {
+            if (isTracing === isEnabled) return;
+            isTracing = isEnabled;
+            if (isEnabled && manager.callback === canContinueGesture)
+                manager.callback = canContinueTracedGesture;
+            else if (
+                !isEnabled &&
+                manager.callback === canContinueTracedGesture
+            )
+                manager.callback = canContinueGesture;
+        },
         toggleSnap(): void {
             isSnapReady = !isSnapReady;
             showSnapReady(isSnapReady);
@@ -134,7 +203,11 @@ export function installNativeGestureControls(
         stop(): void {
             clearKeptRuler();
             isMounted = false;
-            if (manager.callback === canContinueGesture) {
+            isTracing = false;
+            if (
+                manager.callback === canContinueGesture ||
+                manager.callback === canContinueTracedGesture
+            ) {
                 if (hasOwnCallback) manager.callback = canContinueNative;
                 else Reflect.deleteProperty(manager, 'callback');
             }

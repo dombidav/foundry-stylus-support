@@ -1,4 +1,4 @@
-import { settings, verbose } from './settings.ts';
+import { settings, stylusDiagnostics, verbose } from './settings.ts';
 import { registerStylusSettingsMenu } from './features/stylus/configuration.ts';
 import {
     refreshStylusBindings,
@@ -14,6 +14,7 @@ export function onInit(): void {
 /** Initialize the verbose cache after saved settings become available. */
 export function onSetup(): void {
     verbose.initialize(settings.get('isVerbose'));
+    stylusDiagnostics.record('stylus', 'loaded');
 }
 
 /** Mount stylus controls after the D&D world is ready. */

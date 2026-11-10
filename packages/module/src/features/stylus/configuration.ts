@@ -1,5 +1,5 @@
 import { MODULE_ID } from '../../module-id.ts';
-import { settings } from '../../settings.ts';
+import { settings, stylusDiagnostics } from '../../settings.ts';
 import {
     ACTION_LABELS,
     createBinding,
@@ -72,6 +72,25 @@ function createSettingsForm(onSaved: () => void): HTMLFormElement {
     const status = document.createElement('p');
     status.setAttribute('role', 'status');
     const save = createButton('Save changes', 'submit');
+    const exportDiagnostics = createButton('Export diagnostics (JSON)');
+    exportDiagnostics.addEventListener('click', () => {
+        const json = stylusDiagnostics.exportJson({
+            moduleId: MODULE_ID,
+            moduleVersion: game.modules.get(MODULE_ID)?.version,
+            foundryVersion: game.version,
+            swipeVersion: game.modules.get('swipe-vtt')?.version,
+            userAgent: navigator.userAgent,
+        });
+        const date = new Date().toISOString().replaceAll(':', '-');
+        foundry.utils.saveDataToFile(
+            json,
+            'application/json',
+            `${MODULE_ID}-diagnostics-${date}.json`,
+        );
+    });
+    const diagnosticsHint = document.createElement('p');
+    diagnosticsHint.textContent =
+        'Enable Verbose mode in Module Settings to collect diagnostics for this browser session.';
     form.append(
         help,
         createField('Number of stylus buttons', number),
@@ -79,6 +98,8 @@ function createSettingsForm(onSaved: () => void): HTMLFormElement {
         calibration.element,
         save,
         status,
+        diagnosticsHint,
+        exportDiagnostics,
     );
 
     function renderRows(): void {

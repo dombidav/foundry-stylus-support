@@ -4,6 +4,7 @@ import {
     installNativeGestureControls,
     runNativeGestureAction,
 } from '../../../src/features/stylus/native-gestures.ts';
+import { verbose } from '../../../src/settings.ts';
 
 class PenEvent {
     pointerType = 'pen';
@@ -86,6 +87,49 @@ function fixture() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('native stylus actions', () => {
+    it('traces a captured release and a forwarded cancel without changing their results', () => {
+        const { current, manager, canDispatch } = fixture();
+        const controls = installNativeGestureControls(
+            current,
+            () => 'polygon',
+            () => false,
+            (id) => id === 7,
+            vi.fn(),
+        );
+        const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+        verbose.initialize(true);
+        try {
+            controls.setDiagnostics(true);
+            const pen = new PenEvent();
+            expect(manager.callback('dragLeftDrop', pen)).toBe(false);
+            expect(manager.callback('dragLeftCancel', pen)).toBe(true);
+            expect(canDispatch).toHaveBeenCalledExactlyOnceWith(
+                'dragLeftCancel',
+                pen,
+            );
+            expect(debug.mock.calls.map(([, event]) => event)).toEqual([
+                'foundry.dragLeftDrop:before',
+                'foundry.dragLeftDrop:after',
+                'foundry.dragLeftCancel:before',
+                'foundry.dragLeftCancel:after',
+            ]);
+            expect(debug.mock.calls[1]?.[2]).toMatchObject({
+                data: {
+                    pointerId: 7,
+                    didContinue: false,
+                    isDefaultPrevented: true,
+                },
+            });
+            controls.setDiagnostics(false);
+            manager.callback('dragLeftCancel', pen);
+            expect(debug).toHaveBeenCalledTimes(4);
+        } finally {
+            controls.stop();
+            verbose.initialize(false);
+            debug.mockRestore();
+        }
+    });
+
     it('uses the existing polygon preview and waits for three fixed vertices', () => {
         const { current, manager, canDispatch, tap } = fixture();
         manager.interactionData.preview = new DrawingPreview();

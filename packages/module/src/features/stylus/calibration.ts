@@ -1,4 +1,6 @@
+import { stylusDiagnostics, verbose } from '../../settings.ts';
 import { getContactMask, isSameSignal } from './bindings.ts';
+import { pointerDetails } from './diagnostics.ts';
 import { type PenSignal, type StylusBinding } from './stylus.types.js';
 
 export function createCalibration(
@@ -53,6 +55,16 @@ export function createCalibration(
     function onPointer(event: PointerEvent): void {
         if (row === null || event.pointerType !== 'pen') return;
         const previous = masks.get(event.pointerId) ?? 0;
+        if (
+            verbose.isVerbose &&
+            (event.type !== 'pointermove' || previous !== event.buttons)
+        )
+            stylusDiagnostics.record('calibration', event.type, {
+                ...pointerDetails(event),
+                previousButtons: previous,
+                stage,
+                slot: row + 1,
+            });
         if (event.buttons === 0) masks.delete(event.pointerId);
         else masks.set(event.pointerId, event.buttons);
 

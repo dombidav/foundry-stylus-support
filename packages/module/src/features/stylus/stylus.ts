@@ -1,5 +1,6 @@
 import { HooksUtils } from '@template/foundry-core';
-import { settings, verbose } from '../../settings.ts';
+import { MODULE_ID } from '../../module-id.ts';
+import { settings, stylusDiagnostics, verbose } from '../../settings.ts';
 import { readBindings } from './bindings.ts';
 import {
     installNativeGestureControls,
@@ -30,7 +31,9 @@ let boardGeneration = 0;
 let penInput: ReturnType<typeof listenForPenCommands> | undefined;
 let tipGestures: ReturnType<typeof createTipGestures> | undefined;
 let nativeGestures: ReturnType<typeof installNativeGestureControls> | undefined;
+let hasInstalledNativeForBindings = false;
 let customTool: StylusTool | undefined;
+let lastTracedTool: ToolId | undefined;
 let hasRulerBindings = false;
 let stopDrawingHistory: (() => void) | undefined;
 let isChangingMode = false;
@@ -84,6 +87,16 @@ export function startStylus(): void {
     HooksUtils.on('swipeVtt.enabled', () => queueMicrotask(syncMode));
     HooksUtils.on('swipeVtt.disabled', () => queueMicrotask(syncMode));
     HooksUtils.on('clientSettingChanged', (key: string) => {
+        if (key === `${MODULE_ID}.isVerbose`) {
+            queueMicrotask(() => {
+                refreshDiagnostics();
+                if (verbose.isVerbose)
+                    stylusDiagnostics.record('stylus', 'verboseEnabled', {
+                        isStylusActive: !!board,
+                        tool: getActiveToolId(),
+                    });
+            });
+        }
         if (
             key === 'swipe-vtt.oneFingerDrag' ||
             key === 'swipe-vtt.enabledOnDesktop'
@@ -101,17 +114,47 @@ export function refreshStylusBindings(): void {
     );
     penInput.setBindings(bindings);
     if (!hasRulerBindings) nativeGestures?.clearKeptRuler();
-    if (!nativeGestures && penInput.hasBindings()) {
-        nativeGestures = installNativeGestureControls(
-            canvas,
-            getActiveToolId,
-            () => hasRulerBindings,
-            (pointerId) => penInput?.isClaimed(pointerId) ?? false,
-            (isReady) => {
-                snapStatus.hidden = !isReady;
-            },
-        );
+    if (verbose.isVerbose) {
+        stylusDiagnostics.record('stylus', 'bindingsUpdated', {
+            count: bindings.length,
+        });
+        for (const [index, binding] of bindings.entries()) {
+            if (binding.signal)
+                stylusDiagnostics.record('stylus', 'binding', {
+                    slot: index + 1,
+                    action: binding.action,
+                    tool:
+                        binding.action === 'tool' ? binding.target : undefined,
+                    signalType: binding.signal.type,
+                    signalButtons: binding.signal.buttons,
+                });
+        }
     }
+    refreshDiagnostics();
+}
+
+function refreshDiagnostics(): void {
+    if (!penInput || !canvas) return;
+    const isVerbose = verbose.isVerbose;
+    penInput.setDiagnostics(isVerbose);
+    // Keep the native guard until teardown if it has handled bindings. An old claim
+    // can still be waiting for a release after the user removes its binding.
+    hasInstalledNativeForBindings ||= penInput.hasBindings();
+    if (!hasInstalledNativeForBindings && !isVerbose) {
+        nativeGestures?.stop();
+        nativeGestures = undefined;
+        return;
+    }
+    nativeGestures ??= installNativeGestureControls(
+        canvas,
+        getActiveToolId,
+        () => hasRulerBindings,
+        (pointerId) => penInput?.isClaimed(pointerId) ?? false,
+        (isReady) => {
+            snapStatus.hidden = !isReady;
+        },
+    );
+    nativeGestures.setDiagnostics(isVerbose);
 }
 
 function syncMode(): void {
@@ -136,11 +179,28 @@ function syncMode(): void {
             penInput = listenForPenCommands(
                 board,
                 (binding, event) => {
-                    void executeBinding(binding, event).catch(reportError);
+                    const command = executeBinding(binding, event);
+                    if (verbose.isVerbose)
+                        void command.then(() => {
+                            stylusDiagnostics.record(
+                                'stylus',
+                                'buttonSettled',
+                                {
+                                    action: binding.action,
+                                    pointerId: event.pointerId,
+                                    eventTimeMs: event.timeStamp,
+                                },
+                            );
+                        }, reportError);
+                    else void command.catch(reportError);
                 },
                 tipGestures.hasHandled,
                 tipGestures.cancel,
             );
+            if (verbose.isVerbose)
+                stylusDiagnostics.record('stylus', 'canvasAttached', {
+                    generation: boardGeneration,
+                });
             refreshStylusBindings();
             const stopCreate = HooksUtils.on('createDrawing', onCreateDrawing);
             const stopDelete = HooksUtils.on('deleteDrawing', onDeleteDrawing);
@@ -188,13 +248,19 @@ async function toggleMode(): Promise<void> {
 }
 
 function releaseBoard(): void {
+    if (board && verbose.isVerbose)
+        stylusDiagnostics.record('stylus', 'canvasDetached', {
+            generation: boardGeneration,
+        });
     nativeGestures?.stop();
     nativeGestures = undefined;
+    hasInstalledNativeForBindings = false;
     tipGestures?.cancel();
     tipGestures = undefined;
     penInput?.stop();
     penInput = undefined;
     customTool = undefined;
+    lastTracedTool = undefined;
     stopDrawingHistory?.();
     stopDrawingHistory = undefined;
     board = undefined;
@@ -209,6 +275,12 @@ function syncTools(): void {
     }
     const tools = getAvailableTools();
     const activeId = getActiveToolId();
+    if (verbose.isVerbose && lastTracedTool !== activeId) {
+        lastTracedTool = activeId;
+        stylusDiagnostics.record('stylus', 'toolChanged', {
+            tool: activeId ?? null,
+        });
+    }
     if (activeId !== 'measure') nativeGestures?.clearKeptRuler();
     for (const [id, button] of toolbarButtons) {
         const tool = tools.find((available) => available.id === id);
@@ -348,6 +420,10 @@ function onCreateDrawing(
     const history = histories.get(scene);
     if (history) history.push(drawing.id);
     else histories.set(scene, [drawing.id]);
+    if (verbose.isVerbose)
+        stylusDiagnostics.record('stylus', 'drawingCreated', {
+            shape: drawing.shape.type,
+        });
     updateUndoButton();
 }
 
@@ -419,7 +495,11 @@ function createIconButton(icon: string, label: string): HTMLButtonElement {
 }
 
 function reportError(error: unknown): void {
-    verbose.debug('Stylus operation failed', () => error);
+    if (verbose.isVerbose)
+        stylusDiagnostics.record('stylus', 'operationFailed', {
+            message: error instanceof Error ? error.message : String(error),
+            errorName: error instanceof Error ? error.name : undefined,
+        });
     ui.notifications.warn(
         error instanceof Error ? error.message : 'The stylus operation failed.',
     );

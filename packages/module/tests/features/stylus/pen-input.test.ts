@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { listenForPenCommands } from '../../../src/features/stylus/pen-input.ts';
 import { type StylusBinding } from '../../../src/features/stylus/stylus.types.js';
+import { verbose } from '../../../src/settings.ts';
 
 function fixture(hasHandledTip = vi.fn(() => false)) {
     const host = new EventTarget();
@@ -35,6 +36,52 @@ function fixture(hasHandledTip = vi.fn(() => false)) {
 }
 
 afterEach(() => vi.unstubAllGlobals());
+
+it('records raw transitions around a command, skips repeated moves, and detaches the debug move listener', () => {
+    const { input, pen, onCommand, removeListener } = fixture();
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    verbose.initialize(true);
+    try {
+        input.setDiagnostics(true);
+        input.setBindings([
+            {
+                action: 'next',
+                target: '',
+                signal: { type: 'pointerdown', buttons: 32 },
+            },
+        ]);
+        pen('pointerdown', 1);
+        pen('pointermove', 1);
+        pen('pointermove', 3);
+        pen('pointermove', 3);
+        pen('pointerup', 0);
+        pen('pointerdown', 32);
+        pen('pointerup', 0);
+        expect(onCommand).toHaveBeenCalledOnce();
+        expect(debug.mock.calls.map(([, event]) => event)).toEqual([
+            'pointer.pointerdown',
+            'pointer.pointermove',
+            'pointer.pointerup',
+            'pointer.pointerdown',
+            'stylus.buttonMatched',
+            'pointer.pointerup',
+            'stylus.releaseConsumed',
+        ]);
+        expect(removeListener).not.toHaveBeenCalled();
+        input.setDiagnostics(false);
+        expect(removeListener).toHaveBeenCalledWith(
+            'pointermove',
+            expect.any(Function),
+            true,
+        );
+        pen('pointerdown', 1);
+        expect(debug).toHaveBeenCalledTimes(7);
+    } finally {
+        input.stop();
+        verbose.initialize(false);
+        debug.mockRestore();
+    }
+});
 
 it('listens for movement only during a claimed down-only command and keeps the claim through rebinding', () => {
     const { input, onCommand, pen, addListener, removeListener } = fixture();
